@@ -1,0 +1,39 @@
+{
+  "name": "@tinybirdco/ai",
+  "version": "0.0.1",
+  "description": "Tinybird utils for your AI based apps",
+  "homepage": "https://github.com/tinybirdco/ai#readme",
+  "bugs": {
+    "url": "https://github.com/tinybirdco/ai/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tinybirdco/ai.git"
+  },
+  "license": "MIT",
+  "author": "Tinybird",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    "./ai-sdk": {
+      "import": "./dist/ai-sdk.js",
+      "types": "./dist/ai-sdk.d.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^1.3.10",
+    "@ai-sdk/provider": "^1.1.2",
+    "ai": "^4.3.4",
+    "openai": "^4.93.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
