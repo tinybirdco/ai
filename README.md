@@ -22,7 +22,7 @@ This package provides a wrapper for the AI SDK by Vercel that enables integratio
 
 ```typescript
 import { createOpenAI } from "@ai-sdk/openai";
-import { wrapOpenai } from "@tinybirdco/ai";
+import { wrapOpenai } from "@tinybirdco/ai/ai-sdk";
 import { streamText } from "ai";
 
 // Allow streaming responses up to 30 seconds
