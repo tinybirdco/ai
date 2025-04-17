@@ -22,7 +22,7 @@ This package provides a wrapper for the AI SDK by Vercel that enables integratio
 
 ```typescript
 import { createOpenAI } from "@ai-sdk/openai";
-import { wrapOpenai } from "@tinybirdco/ai/ai-sdk";
+import { wrapModel } from "@tinybirdco/ai/ai-sdk";
 import { streamText } from "ai";
 
 // Allow streaming responses up to 30 seconds
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     apiKey: process.env.OPENAI_API_KEY,
   });
 
-  const model = wrapOpenai(openai("chatgpt-4o-latest"), {
+  const model = wrapModel(openai("chatgpt-4o-latest"), {
     host: process.env.TINYBIRD_HOST!,
     token: process.env.TINYBIRD_TOKEN!,
   });
@@ -61,7 +61,7 @@ TINYBIRD_TOKEN=your_tinybird_token
 
 ## Features
 
-- Seamless integration with OpenAI's SDK
+- Seamless integration with Vercel AI SDK
 - Streaming support for real-time responses
 - Easy configuration with Tinybird's analytics platform
 - TypeScript support out of the box

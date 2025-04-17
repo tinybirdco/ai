@@ -1,4 +1,3 @@
-import type { OpenAIProvider } from "@ai-sdk/openai";
 import { LanguageModelV1, LanguageModelV1CallOptions } from "@ai-sdk/provider";
 
 type TinybirdWrapperSettings = {
@@ -21,16 +20,16 @@ type AsyncReturnType<T extends (...args: any) => PromiseLike<any>> = T extends (
   : any;
 
 /**
- * Wraps an OpenAI model from Vercel's AI SDK to add Tinybird analytics and logging.
+ * Wraps a model from Vercel's AI SDK to add Tinybird analytics and logging.
  * This wrapper is specifically designed to work with Vercel's AI SDK models and adds
  * Tinybird event tracking for monitoring and analytics purposes.
  *
- * @param model - The OpenAI model instance from Vercel's AI SDK
+ * @param model - The model instance from Vercel's AI SDK
  * @param settings - Configuration for Tinybird analytics and logging
  * @returns The wrapped model with Tinybird analytics capabilities
  */
-export function wrapOpenai(
-  model: ReturnType<OpenAIProvider>,
+export function wrapModel(
+  model: LanguageModelV1,
   settings: TinybirdWrapperSettings
 ) {
   const _doGenerate = model.doGenerate;
@@ -192,4 +191,8 @@ export function wrapOpenai(
   };
 
   return model;
+}
+
+export function wrapOpenai(...args: Parameters<typeof wrapModel>) {
+  return wrapModel(...args)
 }
