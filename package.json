@@ -18,6 +18,7 @@
   "exports": {
     "./ai-sdk": {
       "import": "./dist/ai-sdk.js",
+      "require": "./dist/ai-sdk.js",
       "types": "./dist/ai-sdk.d.ts"
     }
   },
