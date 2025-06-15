@@ -13,8 +13,10 @@ SQL >
         updated_at
     FROM user_tokens FINAL
     WHERE 
-        user_id = {{String(user_id, '')}}
-        AND channel_id = {{String(channel_id, '')}}
+        {% if defined(user_id) %}
+        user_id = {{String(user_id, '')}} AND 
+        {% end %}
+        channel_id = {{String(channel_id, '')}}
     ORDER BY updated_at DESC
     LIMIT 1
 

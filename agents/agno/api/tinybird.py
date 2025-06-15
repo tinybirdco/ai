@@ -108,7 +108,7 @@ class TinybirdConfig:
         # TODO: Implement API request handling
         pass
 
-    async def get_channel_config(self, channel_id: str, user_id: str) -> Optional[Dict]:
+    async def get_channel_config(self, channel_id: str, user_id: str = None) -> Optional[Dict]:
         """
         Get the latest configuration for a specific channel from Tinybird.
         
@@ -123,8 +123,9 @@ class TinybirdConfig:
                 url = f"{self.host}/v0/pipes/get_latest_user_token.json"
                 params = {
                     "channel_id": channel_id,
-                    "user_id": user_id
                 }
+                if user_id:
+                    params["user_id"] = user_id
                 headers = {
                     "Authorization": f"Bearer {self.token}"
                 }
