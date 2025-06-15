@@ -13,132 +13,109 @@ from textwrap import dedent
 import tempfile
 import time
 import random
+from datetime import datetime
+from .tinybird import create_tinybird_config, encrypt_token, decrypt_token
+from .thinking_messages import THINKING_MESSAGES
 
 # File to store processed message IDs
 PROCESSED_MESSAGES_FILE = os.path.join(tempfile.gettempdir(), "slack_bot_processed_messages.txt")
 
-# Bird-themed thinking messages with fun facts (100 amazing bird facts!)
-THINKING_MESSAGES = [
-    # Speed & Performance (10)
-    "Processing your request, please wait. In the meanwhile did you know Arctic Terns have the longest migration of any bird at 44,000 miles annually? 🐦",
-    "Analyzing your query, please wait. In the meanwhile did you know Peregrine Falcons are the fastest birds, diving at 240+ mph? 🦅",
-    "Working on your data, please wait. In the meanwhile did you know Ruby-throated Hummingbirds have a heartbeat of 1,260 BPM? 💓",
-    "Examining your request, please wait. In the meanwhile did you know Hummingbirds beat their wings 80 times per second? 🌺",
-    "Investigating your query, please wait. In the meanwhile did you know Woodpeckers can peck 20 times per second? 🔨",
-    "Processing your analysis, please wait. In the meanwhile did you know Barn Swallows catch insects mid-flight with incredible precision? 🦟",
-    "Computing your request, please wait. In the meanwhile did you know Roadrunners can run 20 mph and rarely fly? 🏃‍♂️",
-    "Evaluating your data, please wait. In the meanwhile did you know Golden Eagles can dive at speeds over 150 mph? ⚡",
-    "Reviewing your query, please wait. In the meanwhile did you know Giant Hummingbirds have the slowest wing beats at 10 per second? 🦋",
-    "Calculating your metrics, please wait. In the meanwhile did you know Ostriches are the fastest running birds at 45 mph? 🏃‍♀️",
+# Initialize TinybirdConfig instance
+tinybird_config = None
+
+async def init_tinybird_config():
+    """Initialize TinybirdConfig with token from environment"""
+    global tinybird_config
+    token = os.getenv('TINYBIRD_BIRDWATCHER_TOKEN')
+    if not token:
+        print("Missing TINYBIRD_BIRDWATCHER_TOKEN environment variable")
+        return False
+    tinybird_config = create_tinybird_config(token=token)
+    return True
+
+async def get_channel_config(channel_id, user_id):
+    """Get configuration for a specific channel from Tinybird"""
+    if not tinybird_config:
+        if not await init_tinybird_config():
+            return None
+    return await tinybird_config.get_channel_config(channel_id, user_id)
+
+async def save_channel_config(channel_id, config):
+    """Save configuration for a specific channel to Tinybird"""
+    if not tinybird_config:
+        if not await init_tinybird_config():
+            return False
+    return await tinybird_config.save_channel_config(channel_id, config)
+
+def create_config_modal(channel_id, current_config=None):
+    """Create the configuration modal using Slack Blocks"""
+    modal = {
+        "type": "modal",
+        "callback_id": "agno_config_modal",
+        "title": {
+            "type": "plain_text",
+            "text": "Configure Birdwatcher"
+        },
+        "submit": {
+            "type": "plain_text",
+            "text": "Save Configuration"
+        },
+        "close": {
+            "type": "plain_text",
+            "text": "Cancel"
+        },
+        "private_metadata": channel_id,
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Configure Birdwatcher for:* <#{channel_id}>"
+                }
+            },
+            {
+                "type": "divider"
+            },
+            {
+                "type": "input",
+                "block_id": "tinybird_token_block",
+                "label": {
+                    "type": "plain_text",
+                    "text": "Tinybird org admin token"
+                },
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": "tinybird_token",
+                    "placeholder": {
+                        "type": "plain_text",
+                        "text": "Enter your Tinybird organization admin token"
+                    }
+                },
+                "hint": {
+                    "type": "plain_text",
+                    "text": "Token needs to have access to organization service data sources"
+                }
+            },
+            {
+                "type": "input",
+                "block_id": "tinybird_host_block",
+                "label": {
+                    "type": "plain_text",
+                    "text": "Tinybird API Host"
+                },
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": "tinybird_host",
+                    "placeholder": {
+                        "type": "plain_text",
+                        "text": "e.g., https://api.tinybird.co"
+                    }
+                }
+            }
+        ]
+    }
     
-    # Vision & Precision (10)
-    "Scanning your request, please wait. In the meanwhile did you know Eagles can spot a rabbit from 2 miles away? 👁️",
-    "Searching through data, please wait. In the meanwhile did you know Owls have silent flight and asymmetrical ears for precise hunting? 🦉",
-    "Focusing on your query, please wait. In the meanwhile did you know Hawks have vision 8 times better than humans? 🔍",
-    "Examining your metrics, please wait. In the meanwhile did you know Vultures can see a 3-foot carcass from 4 miles up? 🦅",
-    "Detecting patterns, please wait. In the meanwhile did you know Kestrels can see UV light to track rodent urine trails? 🌈",
-    "Observing your data, please wait. In the meanwhile did you know Secretary Birds can see small prey from 100 feet away? 👀",
-    "Tracking your request, please wait. In the meanwhile did you know Goshawks can navigate through dense forests at high speed? 🌲",
-    "Monitoring progress, please wait. In the meanwhile did you know Kingfishers calculate light refraction when diving for fish? 🐟",
-    "Watching for insights, please wait. In the meanwhile did you know Caracaras are among the smartest raptors and use tools? 🧠",
-    "Surveying your query, please wait. In the meanwhile did you know Condors can soar at 15,000 feet altitude? ⛰️",
-    
-    # Intelligence & Memory (10)
-    "Caching your request, please wait. In the meanwhile did you know Clark's Nutcrackers remember over 30,000 seed locations? 🥜",
-    "Calculating results, please wait. In the meanwhile did you know African Grey Parrots can count and do basic math? 🧮",
-    "Problem-solving your query, please wait. In the meanwhile did you know Crows make and use tools and can recognize human faces? 🔧",
-    "Learning from your data, please wait. In the meanwhile did you know Mockingbirds can learn over 200 different songs? 🎵",
-    "Remembering context, please wait. In the meanwhile did you know Pigeons can find their way home from 1,300 miles away? 🧭",
-    "Strategizing analysis, please wait. In the meanwhile did you know Ravens can plan up to 3 steps ahead? ♟️",
-    "Adapting to your request, please wait. In the meanwhile did you know Keas (New Zealand parrots) learned to remove car parts? 🚗",
-    "Innovating solutions, please wait. In the meanwhile did you know Caledonian Crows craft hooks from twigs to extract insects? 🪝",
-    "Communicating with systems, please wait. In the meanwhile did you know Prairie Dogs have specific calls for different predators? 📢",
-    "Recognizing patterns, please wait. In the meanwhile did you know Magpies pass the mirror self-recognition test? 🪞",
-    
-    # Colors & Beauty (10)
-    "Shimmering through data, please wait. In the meanwhile did you know Peacocks have over 200 eye spots on their tail feathers? 🦚",
-    "Glowing with insights, please wait. In the meanwhile did you know Resplendent Quetzals have tail feathers up to 3 feet long? ✨",
-    "Changing approach, please wait. In the meanwhile did you know Mallard Drakes have iridescent green heads during breeding season? 💚",
-    "Sparkling with analysis, please wait. In the meanwhile did you know Sunbirds have metallic plumage that reflects light like jewels? 💎",
-    "Flashing through queries, please wait. In the meanwhile did you know Cardinals get their bright red color from carotenoids in their diet? ❤️",
-    "Displaying results, please wait. In the meanwhile did you know male Birds-of-Paradise have elaborate courtship dances? 💃",
-    "Radiating progress, please wait. In the meanwhile did you know Goldfinches have bright yellow plumage in spring? 🌻",
-    "Gleaming with data, please wait. In the meanwhile did you know Starlings have iridescent feathers with oil-slick colors? 🌈",
-    "Blazing through metrics, please wait. In the meanwhile did you know male Scarlet Tanagers are brilliant red with black wings? 🔥",
-    "Dazzling with insights, please wait. In the meanwhile did you know Wood Ducks are the most colorful North American waterfowl? 🎨",
-    
-    # Sounds & Communication (10)
-    "Echoing your request, please wait. In the meanwhile did you know Canyon Wren songs cascade down rock walls like echoes? 🏔️",
-    "Drumming up results, please wait. In the meanwhile did you know Woodpecker drumming can be heard up to a mile away? 🥁",
-    "Singing through data, please wait. In the meanwhile did you know Nightingales can produce over 1,000 different sounds? 🎼",
-    "Calling for insights, please wait. In the meanwhile did you know Loon calls carry across lakes for miles? 🌊",
-    "Whistling through queries, please wait. In the meanwhile did you know White-throated Sparrows sing a clear 'Old Sam Peabody' song? 🎵",
-    "Honking for attention, please wait. In the meanwhile did you know Canada Geese communicate during 1,000+ mile migrations? 📯",
-    "Chattering with systems, please wait. In the meanwhile did you know Magpies are among the most vocal and social birds? 💬",
-    "Trilling through analysis, please wait. In the meanwhile did you know Canaries have been bred for 400+ years for their beautiful songs? 🎤",
-    "Booming with progress, please wait. In the meanwhile did you know male Bittern calls can be heard 3 miles away? 📢",
-    "Mimicking your request, please wait. In the meanwhile did you know Lyrebirds can imitate chainsaws, camera shutters, and car alarms? 🎭",
-    
-    # Migration & Navigation (10)
-    "Navigating your data, please wait. In the meanwhile did you know Bar-tailed Godwits fly 7,000 miles non-stop from Alaska to New Zealand? 🗺️",
-    "Journeying through metrics, please wait. In the meanwhile did you know Ruby-throated Hummingbirds cross 500 miles of Gulf of Mexico? 🌊",
-    "Traveling through queries, please wait. In the meanwhile did you know Sandhill Cranes use thermal currents to soar up to 13,000 feet? 🌡️",
-    "Following your request, please wait. In the meanwhile did you know Swainson's Hawks make a 17,000 mile round trip migration? 🦋",
-    "Crossing data boundaries, please wait. In the meanwhile did you know Red Knots fly from the Arctic all the way to Argentina? 🌎",
-    "Using magnetic insights, please wait. In the meanwhile did you know Robins can actually see Earth's magnetic field? 🧲",
-    "Timing your analysis, please wait. In the meanwhile did you know Swallows return to the same nesting site within days each year? ⏰",
-    "Enduring the process, please wait. In the meanwhile did you know male Emperor Penguins incubate eggs in -40°F for 64 days? 🥶",
-    "Persisting with queries, please wait. In the meanwhile did you know Albatrosses can fly for hours without flapping their wings? 🌬️",
-    "Orienting to your needs, please wait. In the meanwhile did you know Indigo Buntings navigate using star patterns? ⭐",
-    
-    # Unique Behaviors (10)
-    "Collecting your data, please wait. In the meanwhile did you know male Bowerbirds build elaborate displays to attract mates? 🏗️",
-    "Gathering insights, please wait. In the meanwhile did you know Magpies are attracted to shiny objects and are very intelligent? ✨",
-    "Organizing results, please wait. In the meanwhile did you know Weaver Birds create intricate hanging nests? 🪺",
-    "Filtering your request, please wait. In the meanwhile did you know Flamingos filter 20 beaks of water per bite when feeding? 🦩",
-    "Hunting for patterns, please wait. In the meanwhile did you know Great Blue Herons are masters of patience when hunting? 🎣",
-    "Flocking to your query, please wait. In the meanwhile did you know Starling murmurations can have millions of birds? ✨",
-    "Assembling analysis, please wait. In the meanwhile did you know Emperor Penguins huddle together in -40°F weather? 🐧",
-    "Soaring through data, please wait. In the meanwhile did you know Albatrosses can glide for hours without flapping? 🌊",
-    "Storing your request, please wait. In the meanwhile did you know Acorn Woodpeckers cache up to 50,000 acorns in trees? 🌰",
-    "Cooperating with systems, please wait. In the meanwhile did you know Harris's Hawks hunt in coordinated packs? 🤝",
-    
-    # Size & Scale (10)
-    "Towering over data, please wait. In the meanwhile did you know Shoebill Storks are 5 feet tall with massive bills? 🦆",
-    "Tiny but mighty processing, please wait. In the meanwhile did you know Bee Hummingbirds are the world's smallest birds at only 2 inches long? 🐝",
-    "Massive data analysis, please wait. In the meanwhile did you know Wandering Albatrosses have 11-foot wingspans, the largest of any bird? 🌊",
-    "Compact query handling, please wait. In the meanwhile did you know Goldcrests are Europe's smallest birds and weigh less than a penny? 🪙",
-    "Enormous request processing, please wait. In the meanwhile did you know California Condors have 9.5-foot wingspans and were nearly extinct? 🦅",
-    "Petite but powerful, please wait. In the meanwhile did you know Vervain Hummingbirds weigh less than a dime? 💰",
-    "Gigantic analysis underway, please wait. In the meanwhile did you know Dalmatian Pelicans can have 12-foot wingspans? 🦢",
-    "Miniature miracles happening, please wait. In the meanwhile did you know Weebills are Australia's smallest birds? 🇦🇺",
-    "Colossal computations running, please wait. In the meanwhile did you know Andean Condors are the heaviest flying birds in the Western Hemisphere? ⛰️",
-    "Delicate data handling, please wait. In the meanwhile did you know Firecrests weigh only 4-7 grams? 🔥",
-    
-    # Feeding & Diet (10)
-    "Nectar-sweet analysis, please wait. In the meanwhile did you know Hummingbirds visit over 1,000 flowers per day? 🌸",
-    "Seed-cracking your query, please wait. In the meanwhile did you know Cardinals have powerful beaks that can crush tough seeds? 🌰",
-    "Fish-catching insights, please wait. In the meanwhile did you know Kingfishers dive headfirst into water to catch fish? 🐟",
-    "Insect-hunting for data, please wait. In the meanwhile did you know Flycatchers catch prey mid-air with incredible precision? 🦟",
-    "Fruit-bearing results, please wait. In the meanwhile did you know Toucans help disperse seeds across rainforests? 🍓",
-    "Meat-and-potatoes analysis, please wait. In the meanwhile did you know Vultures have stomach acid strong enough to kill bacteria? 🦴",
-    "Nut-cracking your request, please wait. In the meanwhile did you know Nutcrackers can crack pine nuts with their specialized bills? 🥜",
-    "Worm-hunting for answers, please wait. In the meanwhile did you know Robins can hear earthworms moving underground? 🪱",
-    "Honey-sweet processing, please wait. In the meanwhile did you know Honeyguides lead humans to beehives? 🍯",
-    "Plankton-filtering data, please wait. In the meanwhile did you know Flamingos have specialized bills that filter tiny organisms? 🦐",
-    
-    # Extreme Adaptations (10)
-    "Diving deep into data, please wait. In the meanwhile did you know Emperor Penguins can dive 1,800 feet deep for 22 minutes? 🏊‍♂️",
-    "Surviving the analysis, please wait. In the meanwhile did you know Snowy Owls hunt in Arctic temperatures down to -40°F? ❄️",
-    "Climbing through queries, please wait. In the meanwhile did you know Woodpecker tail feathers act as a tripod for support when climbing? 🧗‍♂️",
-    "Swimming through metrics, please wait. In the meanwhile did you know Penguins can 'fly' underwater at 22 mph? 🏊‍♀️",
-    "Sleeping on your request... just kidding! In the meanwhile did you know Swifts can sleep while flying at altitude? 😴",
-    "Hovering over data, please wait. In the meanwhile did you know Kestrels can remain stationary in strong winds by hovering? 🌪️",
-    "Backwards-engineering insights, please wait. In the meanwhile did you know Hummingbirds are the only birds that can fly backwards? ⬅️",
-    "Upside-down thinking, please wait. In the meanwhile did you know Nuthatches walk headfirst down tree trunks? 🙃",
-    "Waterproofing your analysis, please wait. In the meanwhile did you know Ducks have oil glands that keep their feathers completely dry? 💧",
-    "Camouflaging complexity, please wait. In the meanwhile did you know Potoos look exactly like broken tree branches for camouflage? 🌳"
-]
+    return modal
 
 def is_thinking_message(text):
     """Check if a message is one of the bot's thinking messages"""
@@ -387,6 +364,10 @@ class handler(BaseHTTPRequestHandler):
 
             try:
                 data = json.loads(body)
+                print(f"=== PARSED DATA DEBUG ===")
+                print(f"Data type: {data.get('type')}")
+                print(f"Full data: {json.dumps(data, indent=2)}")
+                print(f"========================")
 
                 if data.get("type") == "url_verification":
                     challenge = data.get("challenge", "")
@@ -408,63 +389,53 @@ class handler(BaseHTTPRequestHandler):
                         json.dumps({"status": "ok"}).encode("utf-8"),
                     )
                     return
-
             except json.JSONDecodeError:
                 try:
                     parsed_data = urllib.parse.parse_qs(body)
-                    command = parsed_data.get("command", [""])[0]
+                    print(f"=== FORM DATA DEBUG ===")
+                    print(f"Parsed form data: {parsed_data}")
+                    print(f"========================")
 
-                    if command in ["/agno-metrics", "/agno", "/agno-help"]:
-                        text = parsed_data.get("text", [""])[0]
-                        user_id = parsed_data.get("user_id", [""])[0]
-                        channel_id = parsed_data.get("channel_id", [""])[0]
-                        response_url = parsed_data.get("response_url", [""])[0]
-                        if command == "/birdwatcher":
-                            if not text:
-                                query_text = (
-                                    "How can I help you analyze your organization data?"
-                                )
-                            else:
-                                query_text = text
-                        else:
-                            query_text = text or "How can I help you?"
-
-                        response = {
-                            "response_type": "in_channel",
-                            "text": random.choice(THINKING_MESSAGES),
-                        }
-
-                        self._send_response_safely(
-                            200,
-                            "application/json",
-                            json.dumps(response).encode("utf-8"),
-                        )
-
-                        def process_slash_command():
-                            try:
-                                response_text = self._process_with_agno(
-                                    query_text, user_id, channel_id
-                                )
-
-                                if response_url:
-                                    self._send_followup_response(
-                                        response_url, response_text
-                                    )
-                            except Exception as e:
-                                print(f"Error processing slash command: {e}")
-                                if response_url:
-                                    self._send_followup_response(
-                                        response_url,
-                                        f"Sorry, I encountered an error: {str(e)}",
-                                    )
-
+                    # Handle view submission
+                    if "payload" in parsed_data:
                         try:
-                            self._executor.submit(process_slash_command)
-                        except Exception as e:
-                            print(f"Error submitting slash command to executor: {e}")
-                            thread = threading.Thread(target=process_slash_command)
-                            thread.daemon = True
-                            thread.start()
+                            payload = json.loads(parsed_data["payload"][0])
+                            print(f"=== PAYLOAD DEBUG ===")
+                            print(f"Payload type: {payload.get('type')}")
+                            print(f"Full payload: {json.dumps(payload, indent=2)}")
+                            print(f"========================")
+
+                            if payload.get("type") == "view_submission":
+                                print("Received view submission")
+                                try:
+                                    result = self._run_async_in_loop(self._handle_modal_submission(payload))
+                                    self._send_response_safely(
+                                        200,
+                                        "application/json",
+                                        json.dumps(result).encode("utf-8")
+                                    )
+                                    return
+                                except Exception as e:
+                                    print(f"Error handling view submission: {e}")
+                                    self._send_response_safely(
+                                        200,
+                                        "application/json",
+                                        json.dumps({
+                                            "response_action": "errors",
+                                            "errors": {
+                                                "tinybird_token_block": f"Error processing submission: {str(e)}"
+                                            }
+                                        }).encode("utf-8")
+                                    )
+                                    return
+                        except json.JSONDecodeError as e:
+                            print(f"Error parsing payload JSON: {e}")
+                            return
+
+                    # Handle slash commands
+                    command = parsed_data.get("command", [""])[0]
+                    if command == "/birdwatcher-config":
+                        self._run_async_in_loop(self._handle_config_command(parsed_data))
                         return
                 except Exception as e:
                     print(f"Error parsing form data: {e}")
@@ -579,9 +550,9 @@ class handler(BaseHTTPRequestHandler):
                         reply_thread_ts,
                     )
 
-                    response = self._process_with_agno(
+                    response = self._run_async_in_loop(self._process_with_agno(
                         user_message, user, channel, reply_thread_ts
-                    )
+                    ))
 
                     print(
                         f"Sending response to channel {channel}, reply_thread_ts: {reply_thread_ts}"
@@ -614,7 +585,7 @@ class handler(BaseHTTPRequestHandler):
 
             traceback.print_exc()
 
-    def _process_with_agno(
+    async def _process_with_agno(
         self, message: str, user_id: str, channel: str = None, thread_ts: str = None
     ) -> str:
         try:
@@ -650,6 +621,26 @@ class handler(BaseHTTPRequestHandler):
                     
                     print(f"Added full thread context: {thread_context}")
 
+            # Get channel configuration
+            channel_config = await get_channel_config(channel, user_id)
+            if not channel_config:
+                return "❌ No configuration found for this channel. Please use `/birdwatcher-config` to set up the channel first."
+
+            # Get Tinybird configuration
+            tinybird_host = channel_config.get("tinybird_host")
+            encrypted_token = channel_config.get("tinybird_token")
+
+            if not encrypted_token or not tinybird_host:
+                return "❌ No Tinybird token or host configured for this channel. Please use `/birdwatcher-config` to set up the channel first."
+
+            try:
+                tinybird_token = decrypt_token(encrypted_token)
+                if not tinybird_token:
+                    return "❌ Error decrypting Tinybird token. Please reconfigure the channel using `/birdwatcher-config`."
+            except Exception as e:
+                print(f"Error decrypting token: {e}")
+                return "❌ Error decrypting Tinybird token. Please reconfigure the channel using `/birdwatcher-config`."
+
             async def run_agent():
                 agent = None
                 mcp_tools = None
@@ -669,8 +660,8 @@ class handler(BaseHTTPRequestHandler):
                         system_prompt=SYSTEM_PROMPT,
                         instructions=instructions,
                         markdown=False,
-                        tinybird_host=os.getenv("TINYBIRD_HOST"),
-                        tinybird_api_key=os.getenv("TINYBIRD_API_KEY"),
+                        tinybird_host=tinybird_host,
+                        tinybird_api_key=tinybird_token,
                     )
 
                     async with mcp_tools:
@@ -746,3 +737,129 @@ class handler(BaseHTTPRequestHandler):
                 "utf-8"
             )
         )
+
+    async def _handle_config_command(self, parsed_data):
+        """Handle the /birdwatcher-config command"""
+        try:
+            user_id = parsed_data.get("user_id", [""])[0]
+            channel_id = parsed_data.get("channel_id", [""])[0]
+            trigger_id = parsed_data.get("trigger_id", [""])[0]
+            response_url = parsed_data.get("response_url", [""])[0]
+
+            # Send immediate acknowledgment
+            response = {
+                "response_type": "ephemeral",
+                "text": "Opening configuration modal..."
+            }
+            self._send_response_safely(
+                200,
+                "application/json",
+                json.dumps(response).encode("utf-8")
+            )
+
+            # Get current config and create modal
+            current_config = await get_channel_config(channel_id, user_id)
+            modal = create_config_modal(channel_id, current_config)
+
+            # Open modal using Slack API
+            slack_token = os.environ.get("SLACK_BOT_TOKEN", "")
+            if not slack_token:
+                self._send_followup_response(
+                    response_url,
+                    "❌ Error: Bot token not configured"
+                )
+                return
+
+            try:
+                req = urllib.request.Request(
+                    "https://slack.com/api/views.open",
+                    data=json.dumps({
+                        "trigger_id": trigger_id,
+                        "view": modal
+                    }).encode("utf-8"),
+                    headers={
+                        "Authorization": f"Bearer {slack_token}",
+                        "Content-Type": "application/json"
+                    }
+                )
+
+                response = urllib.request.urlopen(req)
+                response_data = json.loads(response.read().decode("utf-8"))
+
+                if not response_data.get("ok"):
+                    error_msg = response_data.get("error", "Unknown error")
+                    self._send_followup_response(
+                        response_url,
+                        f"❌ Error opening configuration modal: {error_msg}"
+                    )
+                    return
+
+            except Exception as e:
+                print(f"Error opening modal: {e}")
+                self._send_followup_response(
+                    response_url,
+                    f"❌ Error opening configuration modal: {str(e)}"
+                )
+
+        except Exception as e:
+            print(f"Error handling config command: {e}")
+            if "response_url" in locals():
+                self._send_followup_response(
+                    response_url,
+                    f"❌ Error processing configuration command: {str(e)}"
+                )
+
+    async def _handle_modal_submission(self, payload):
+        """Handle modal submission for configuration"""
+        try:
+            view = payload.get("view", {})
+            channel_id = view.get("private_metadata")
+            user_id = payload.get("user", {}).get("id")
+            values = view.get("state", {}).get("values", {})
+
+            # Extract form values
+            tinybird_host = values.get("tinybird_host_block", {}).get("tinybird_host", {}).get("value", "")
+            tinybird_token = values.get("tinybird_token_block", {}).get("tinybird_token", {}).get("value", "")
+
+            # Validate required fields
+            if not tinybird_token:
+                return {
+                    "response_action": "errors",
+                    "errors": {
+                        "tinybird_token_block": "Tinybird token is required" if not tinybird_token else None,
+                    }
+                }
+
+            # Save configuration
+            config = {
+                "tinybird_host": tinybird_host or '',
+                "tinybird_token": encrypt_token(tinybird_token) or '',
+                "updated_by": user_id,
+                "updated_at": datetime.now().isoformat()
+            }
+
+            success = await save_channel_config(channel_id, config)
+            if not success:
+                return {
+                    "response_action": "errors",
+                    "errors": {
+                        "tinybird_token_block": "Failed to save configuration"
+                    }
+                }
+
+            # Send confirmation message
+            self._send_slack_message(
+                channel_id,
+                f"✅ Birdwatcher configuration updated successfully!"
+            )
+
+            return {"response_action": "clear"}
+
+        except Exception as e:
+            print(f"Error handling modal submission: {e}")
+            return {
+                "response_action": "errors",
+                "errors": {
+                    "tinybird_token_block": f"Error saving configuration: {str(e)}"
+                }
+            }

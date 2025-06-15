@@ -25,5 +25,6 @@ resend
 slack-sdk>=3.20.0
 
 # Slack integration (optional, can be added later)
-# slack-bolt>=1.23.0
-# aiohttp>=3.12.7 
+slack-bolt>=1.23.0
+aiohttp>=3.12.7 
+cryptography
