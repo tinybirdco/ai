@@ -1,0 +1,23 @@
+
+DESCRIPTION >
+    Endpoint to retrieve the most recent token and host for a specific user and channel
+
+NODE get_latest_user_token_node
+SQL >
+    %
+    SELECT 
+        user_id,
+        channel_id,
+        token,
+        host,
+        updated_at
+    FROM user_tokens FINAL
+    WHERE 
+        {% if defined(user_id) %}
+        user_id = {{String(user_id, '')}} AND 
+        {% end %}
+        channel_id = {{String(channel_id, '')}}
+    ORDER BY updated_at DESC
+    LIMIT 1
+
+TYPE endpoint

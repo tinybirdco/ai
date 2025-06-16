@@ -1,0 +1,15 @@
+
+DESCRIPTION >
+    A datasource to store user token information with ReplacingMergeTree engine for deduplication based on user_id, channel_id, and updated_at.
+
+SCHEMA >
+    `user_id` String `json:$.user_id`,
+    `channel_id` String `json:$.channel_id`,
+    `token` String `json:$.token`,
+    `host` String `json:$.host`,
+    `updated_at` DateTime `json:$.updated_at`
+
+ENGINE "ReplacingMergeTree"
+ENGINE_PARTITION_KEY "toYYYYMM(updated_at)"
+ENGINE_SORTING_KEY "user_id, channel_id, updated_at"
+        
