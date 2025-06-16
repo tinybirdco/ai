@@ -52,7 +52,7 @@ async def create_agno_agent(
         )
 
     mcp_tools = MCPTools(
-        transport="streamable-http", url=server_url, timeout_seconds=120
+        transport="streamable-http", url=server_url, timeout_seconds=300
     )
 
     google_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
@@ -115,7 +115,7 @@ async def create_agno_agent(
     return agent, mcp_tools, credentials_file
 
 
-async def run_single_command(prompt, user_id="alrocar"):
+async def run_single_command(prompt, user_id="alrocar", instructions=None):
     """Run a single command and exit - useful for cron jobs"""
     load_dotenv()
     tinybird_api_key = os.getenv("TINYBIRD_API_KEY")
@@ -124,7 +124,7 @@ async def run_single_command(prompt, user_id="alrocar"):
     tinybird_host = os.getenv("TINYBIRD_HOST")
     memory_agent, mcp_tools, _ = await create_agno_agent(
         system_prompt=SYSTEM_PROMPT,
-        instructions=[dedent(INVESTIGATION_TEMPLATES)],
+        instructions=instructions,
         tinybird_host=tinybird_host,
         tinybird_api_key=tinybird_api_key,
     )

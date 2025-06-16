@@ -16,19 +16,23 @@ SQL >
     LEFT JOIN (
         SELECT notification_types, channel_id
         FROM notification_configs FINAL
-        WHERE 
+        WHERE 1
             {% if defined(user_id) %}
-            user_id = {{String(user_id, '')}} AND 
+            AND user_id = {{String(user_id, '')}}
             {% end %}
-            channel_id = {{String(channel_id, '')}}
+            {% if defined(channel_id) %}
+            AND channel_id = {{String(channel_id, '')}}
+            {% end %}
         ORDER BY updated_at DESC
         LIMIT 1)
     USING channel_id
-    WHERE 
+    WHERE 1
         {% if defined(user_id) %}
-        user_id = {{String(user_id, '')}} AND 
+        AND user_id = {{String(user_id, '')}}
         {% end %}
-        channel_id = {{String(channel_id, '')}}
+        {% if defined(channel_id) %}
+        AND channel_id = {{String(channel_id, '')}}
+        {% end %}
         {% if defined(schedule) %}
         AND length(notification_types) > 0
         {% end %}

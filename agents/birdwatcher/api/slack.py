@@ -654,8 +654,8 @@ async def process_with_agno(
             return "❌ No configuration found for this channel. Please use `/birdwatcher-config` to set up the agent first."
 
         # Get Tinybird configuration
-        tinybird_host = channel_config.get("tinybird_host")
-        encrypted_token = channel_config.get("tinybird_token")
+        tinybird_host = channel_config.get("host")
+        encrypted_token = channel_config.get("token")
 
         if not encrypted_token or not tinybird_host:
             return "❌ No Tinybird token or host configured for this channel. Please use `/birdwatcher-config` to set up the agent first."
