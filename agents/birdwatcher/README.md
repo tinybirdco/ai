@@ -1,14 +1,33 @@
-# Birdwatcher Slack Bot - Railway Deployment
+# Birdwatcher
 
-This is the Birdwatcher Slack agent that provides data analysis capabilities for your Tinybird Organization.
+This is the Birdwatcher agent that provides data analysis capabilities for your Tinybird Organization
 
-### Prerequisites
+## Contents
 
-1. **Railway Account**
-2. **Slack App**
-3. **Tinybird Account** 
+- `/api` -> Contains a Slack API to integrate with a Slack bot (@Birdwatcher)
+- `/tinybird` -> Contains a Tinybird project for @Birdwatcher user configuration
+- `birdwatcher.py` -> Birdwatcher agent implementation
+
+## Birdwatcher Slack Agent
+
+The Birdwatcher Slack agent answers natural language questions about your Tinybird organization metrics
+
+### Usage
+
+1. Invite `@Birdwatcher` to a channel or open a DM
+2. Run `/birdwatcher-config` to configure your Tinybird organization admin token and host
+![birdwatcher-config](./birdwatcher-config.png)
+3. Mention `@Birdwatcher` to ask questions about your workspaces or organization
+![birdwatcher-thread](./birdwatcher-thread.png)
 
 ### Deployment
+
+Deploy a multi-tenant Slack app to your Slack workspace that uses the Birdwatcher agent
+
+Pre-requisites:
+1. Railway account
+2. Create a [Slack app](https://api.slack.com/apps)
+3. Tinybird account
 
 Deploy a Tinybird project to store Birdwatcher workspace configuration:
 
@@ -22,7 +41,7 @@ tb --cloud deploy
 tb token copy "admin token"
 ```
 
-Deploy the Slack bot API that uses the Birdwatcher agent:
+Deploy the Slack bot API that uses the Birdwatcher agent. The snippet below uses `Railway` but you can use any other platform.
 
 ```bash
 # macOS
