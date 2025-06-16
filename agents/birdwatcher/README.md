@@ -1,35 +1,47 @@
 # Birdwatcher
 
-This is the Birdwatcher agent that provides data analysis capabilities for your Tinybird Organization
+Birdwatcher is an AI agent that provides data analysis capabilities for your Tinybird Organization.
 
-## Contents
+It connects to the [Tinybird MCP server](https://www.tinybird.co/docs/forward/work-with-data/mcp) using your organization’s admin token and enables conversational analytics via natural language.
 
-- `/api` -> Contains a Slack API to integrate with a Slack bot (@Birdwatcher)
-- `/tinybird` -> Contains a Tinybird project for @Birdwatcher user configuration
-- `birdwatcher.py` -> Birdwatcher agent implementation
+Birdwatcher can answer questions such as:
+- _What's my storage usage?_
+- _What are the pipes with more errors in the last 24 hours?_
+- _What are the datasources with more rows in quarantine in the last hour?_
 
-## Birdwatcher Slack Agent
+You can run Birdwatcher as a standalone agent (locally or scheduled), or connect it to a Slack bot for a conversational experience and proactive reminders about key metrics.
 
-The Birdwatcher Slack agent answers natural language questions about your Tinybird organization metrics
+## 📂 Project structure
 
-### Usage
+- `/api` -> Contains the Slack API that connects `@Birdwatcher` to Slack
+- `/tinybird` -> Tinybird project to manage the `@Birdwatcher` user configuration
+- `birdwatcher.py` -> Main agent logic; usable as standalone or via Slack
+- `prompts.py` -> Default prompt templates you can customize
+
+## 💭 Birdwatcher Slack Agent
+
+Birdwatcher integrates into Slack and enables you to query your Tinybird metrics using natural language.
+
+### ✅ Usage
 
 1. Invite `@Birdwatcher` to a channel or open a DM
-2. Run `/birdwatcher-config` to configure your Tinybird organization admin token and host
+2. Run `/birdwatcher-config` slash command to configure your Tinybird organization admin token and host
 ![birdwatcher-config](./birdwatcher-config.png)
 3. Mention `@Birdwatcher` to ask questions about your workspaces or organization
 ![birdwatcher-thread](./birdwatcher-thread.png)
 
-### Deployment
 
-Deploy a multi-tenant Slack app to your Slack workspace that uses the Birdwatcher agent
+
+### 🚀 Deployment guide
+
+Deploy Birdwatcher as a multi-tenant Slack app using Railway, or your preferred hosting provider
 
 Pre-requisites:
 1. Railway account
 2. Create a [Slack app](https://api.slack.com/apps)
 3. Tinybird account
 
-Deploy a Tinybird project to store Birdwatcher workspace configuration:
+#### Step 1: Deploy the Tinybird project
 
 ```bash
 cd ai/agents/birdwatcher/tinybird
@@ -41,61 +53,45 @@ tb --cloud deploy
 tb token copy "admin token"
 ```
 
-Deploy the Slack bot API that uses the Birdwatcher agent. The snippet below uses `Railway` but you can use any other platform.
+#### Step 2: Deploy the Slack Bot API (via Railway)
 
 ```bash
-# macOS
-brew install railway
+# Install the Railway CLI
+brew install railway             # macOS
+npm install -g @railway/cli     # any OS
 
-# npm (any OS)
-npm install -g @railway/cli
-
-# Or download from https://railway.app/cli
-
-# Navigate to your project directory
 cd ai/agents/birdwatcher
-   
 
+# Login and initialize project
 railway login
 railway init
-   
-# This will create a new project and service
-# Follow the prompts to name your project
-   
-# Deploy directly from local directory
-railway up
-   
-# After first deployment, set environment variables
-railway variables --set SLACK_BOT_TOKEN=xoxb-your-bot-token
 
-# get your Slack bot user ID
-# curl -H "Authorization: Bearer $SLACK_BOT_TOKEN" https://slack.com/api/auth.test
+# Deploy from local directory
+railway up
+
+# Set required environment variables
+railway variables --set SLACK_TOKEN=xoxb-your-bot-token
 railway variables --set SLACK_BOT_USER_ID=your-bot-user-id
-   
-# The bot uses Gemini models, but you can adapt the code to any other model
-# set Google Cloud credentials, use JSON content (not file path):
-railway variables --set GOOGLE_APPLICATION_CREDENTIALS='{"type":"service_account","project_id":"your-project-id","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"...","client_id":"...","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"..."}'
+railway variables --set TINYBIRD_BIRDWATCHER_TOKEN=your-admin-token
+railway variables --set ENCRYPTION_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+
+# Gemini model config
+railway variables --set GOOGLE_APPLICATION_CREDENTIALS='{"type":...}'  # Full JSON
 railway variables --set GOOGLE_CLOUD_PROJECT=
 railway variables --set GOOGLE_CLOUD_LOCATION=
 
-# This is to store Birdwatcher Tinybird tokens on /birdwatcher-config
-railway variables --set TINYBIRD_BIRDWATCHER_TOKEN=
-# This is to encrypt config tokens
-# generate with python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" or similar
-railway variables --set ENCRYPTION_KEY=
-
-# Optional, to enable storage and email
+# Optional extras
 railway variables --set PG_URL=your-postgres-connection-url
 railway variables --set RESEND_API_KEY=your-resend-api-key
-   
-# Redeploy with new variables
+
+# Final deployment
 railway up
 
-# Get your URL
+# Retrieve deployment domain
 railway domain
 ```
 
-### Configure the Slack app
+#### Step3: Slack App Configuration
 
 Use this `App Manifest`
 
@@ -115,7 +111,7 @@ features:
     always_online: true
   slash_commands:
     - command: /birdwatcher-config
-      url: <YOUR_RAILWAY_DOMAIN>/api/slack
+      url: https://<YOUR_RAILWAY_DOMAIN>/api/slack
       description: configure tokens
       should_escape: false
 oauth_config:
@@ -131,7 +127,7 @@ oauth_config:
       - commands
 settings:
   event_subscriptions:
-    request_url: <YOUR_RAILWAY_DOMAIN>/api/slack
+    request_url: https://<YOUR_RAILWAY_DOMAIN>/api/slack
     bot_events:
       - app_home_opened
       - app_mention
@@ -140,20 +136,20 @@ settings:
       - message.im
   interactivity:
     is_enabled: true
-    request_url: <YOUR_RAILWAY_DOMAIN>/api/slack
+    request_url: https://<YOUR_RAILWAY_DOMAIN>/api/slack
   org_deploy_enabled: false
   socket_mode_enabled: false
   token_rotation_enabled: false
 ```
 
-### Local Development
+### 🧪 Local Development
 
 ```bash
 # Install dependencies
 pip install -r requirements.txt
 
 # Set environment variables (check .env.example for the complete list)
-export SLACK_BOT_TOKEN=your-token
+export SLACK_TOKEN=your-token
 export SLACK_BOT_USER_ID=your-bot-user-id
 export ...
 ...
@@ -164,4 +160,60 @@ python server.py
 
 # Use ngrok to test the Slack app with your local server
 ngrok http 8000
+```
+
+## 🔁 Standalone Birdwatcher Agent
+
+You can run Birdwatcher outside of Slack for manual queries or scheduled background tasks.
+
+### ⚙️ Required Environment Variables
+
+Create a `.env` file with the following:
+
+```bash
+# Birdwatcher uses gemini models via VertexAI
+GOOGLE_APPLICATION_CREDENTIALS='{"type": "service_account","project_id": ...}'
+VERTEX_API_KEY=
+GOOGLE_CLOUD_PROJECT=
+GOOGLE_CLOUD_LOCATION=
+
+# Tinybird Token and Host. Use organization admin token
+TINYBIRD_API_KEY=
+TINYBIRD_HOST=
+
+# Optional if you use storage or memory
+ANTHROPIC_API_KEY=
+PG_URL=
+
+# Optional tools to notify via email or Slack
+RESEND_API_KEY=
+SLACK_TOKEN=
+SLACK_BOT_USER_ID=
+```
+
+### 📦 Install
+
+```bash
+uv sync
+```
+
+### 💬 Run in CLI mode
+
+This is useful for an interactive conversational interface with your Tinybird organization metrics and workspaces
+
+```sh
+uv run python birdwatcher.py
+🤖 Birdwatcher Chat CLI
+Type 'exit' to quit
+Example: Find pipes with the most errors in the last 24 hours
+```
+
+### 🔁 Run in ambient mode
+
+Use this mode to run an ambient agent on schedule that notifies via Slack or e-mail.
+
+This mode uses by default the `INVESTIGATION_TEMPLATES` prompt, to notify to Slack about CPU spikes in your organization and find culprits. Adapt the prompt to your specific needs.
+
+```sh
+uv run python birdwatcher.py --prompt "investigate cpu spikes in the last day and notify to #tmp-birdwatcher Slack channel"
 ```
