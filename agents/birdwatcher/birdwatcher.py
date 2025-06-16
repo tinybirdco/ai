@@ -23,6 +23,7 @@ import os
 import asyncio
 from datetime import datetime
 
+from dotenv import load_dotenv
 
 async def create_agno_agent(
     role="Autonomous Data Analyst",
@@ -116,6 +117,7 @@ async def create_agno_agent(
 
 async def run_single_command(prompt, user_id="alrocar"):
     """Run a single command and exit - useful for cron jobs"""
+    load_dotenv()
     tinybird_api_key = os.getenv("TINYBIRD_API_KEY")
     if not tinybird_api_key:
         raise ValueError("TINYBIRD_API_KEY is not set")
@@ -147,6 +149,7 @@ async def run_single_command(prompt, user_id="alrocar"):
 
 
 async def main():
+    load_dotenv()
     parser = argparse.ArgumentParser(description="Birdwatcher Agent - Interactive chat or single command mode")
     parser.add_argument("--prompt", "-p", type=str, help="Run a single command instead of interactive chat")
     parser.add_argument("--user-id", "-u", type=str, default="alrocar", help="User ID for memory storage")

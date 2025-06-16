@@ -6,7 +6,7 @@ This is the Birdwatcher agent that provides data analysis capabilities for your 
 
 - `/api` -> Contains a Slack API to integrate with a Slack bot (@Birdwatcher)
 - `/tinybird` -> Contains a Tinybird project for @Birdwatcher user configuration
-- `birdwatcher.py` -> Birdwatcher agent implementation
+- `birdwatcher.py` -> Birdwatcher agent implementation. It's used by the Slack API but you can run it standalone
 
 ## Birdwatcher Slack Agent
 
@@ -66,10 +66,10 @@ railway init
 railway up
    
 # After first deployment, set environment variables
-railway variables --set SLACK_BOT_TOKEN=xoxb-your-bot-token
+railway variables --set SLACK_TOKEN=xoxb-your-bot-token
 
 # get your Slack bot user ID
-# curl -H "Authorization: Bearer $SLACK_BOT_TOKEN" https://slack.com/api/auth.test
+# curl -H "Authorization: Bearer $SLACK_TOKEN" https://slack.com/api/auth.test
 railway variables --set SLACK_BOT_USER_ID=your-bot-user-id
    
 # The bot uses Gemini models, but you can adapt the code to any other model
@@ -153,7 +153,7 @@ settings:
 pip install -r requirements.txt
 
 # Set environment variables (check .env.example for the complete list)
-export SLACK_BOT_TOKEN=your-token
+export SLACK_TOKEN=your-token
 export SLACK_BOT_USER_ID=your-bot-user-id
 export ...
 ...
@@ -165,3 +165,7 @@ python server.py
 # Use ngrok to test the Slack app with your local server
 ngrok http 8000
 ```
+
+## Birdwatcher Standalone Agent
+
+

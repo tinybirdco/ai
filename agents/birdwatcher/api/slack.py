@@ -196,9 +196,9 @@ def mark_message_processed(message_id):
 
 async def send_slack_message(channel: str, text: str, thread_ts: str = None):
     """Send a message to Slack using aiohttp"""
-    slack_token = os.environ.get("SLACK_BOT_TOKEN", "")
+    slack_token = os.environ.get("SLACK_TOKEN", "")
     if not slack_token:
-        print("ERROR: No SLACK_BOT_TOKEN found!")
+        print("ERROR: No SLACK_TOKEN found!")
         return False
 
     slack_data = {"channel": channel, "text": text}
@@ -260,7 +260,7 @@ async def send_followup_response(response_url: str, text: str):
 
 async def get_thread_history(channel: str, thread_ts: str, limit: int = 50):
     """Fetch thread history from Slack API using aiohttp"""
-    slack_token = os.environ.get("SLACK_BOT_TOKEN", "")
+    slack_token = os.environ.get("SLACK_TOKEN", "")
     if not slack_token or not thread_ts:
         return []
     
@@ -655,7 +655,7 @@ async def handle_config_command(parsed_data):
         modal = create_config_modal(channel_id)
 
         # Open modal using Slack API
-        slack_token = os.environ.get("SLACK_BOT_TOKEN", "")
+        slack_token = os.environ.get("SLACK_TOKEN", "")
         if not slack_token:
             await send_followup_response(
                 response_url,
@@ -704,9 +704,9 @@ async def handle_config_command(parsed_data):
 async def send_ephemeral_message(channel: str, user: str, text: str):
     """Send an ephemeral message to a channel using aiohttp"""
     try:
-        slack_token = os.environ.get("SLACK_BOT_TOKEN", "")
+        slack_token = os.environ.get("SLACK_TOKEN", "")
         if not slack_token:
-            print("ERROR: No SLACK_BOT_TOKEN found!")
+            print("ERROR: No SLACK_TOKEN found!")
             return False
 
         async with aiohttp.ClientSession() as session:
