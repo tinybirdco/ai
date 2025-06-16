@@ -199,7 +199,9 @@ uv sync
 
 ### 💬 Run in CLI mode
 
-This is useful for an interactive conversational interface with your Tinybird organization metrics and workspaces
+This is useful for an interactive conversational interface with your Tinybird organization metrics and workspaces.
+
+This mode uses by default the [EXPLORATIONS_PROMPT](https://github.com/tinybirdco/ai/blob/02d1c9994bd647a9dc4e962bcd382d3651abf017/agents/birdwatcher/prompts.py#L24) prompt to answer questions. Adapt the prompt to your specific needs.
 
 ```sh
 uv run python birdwatcher.py
@@ -212,7 +214,7 @@ Example: Find pipes with the most errors in the last 24 hours
 
 Use this mode to run an ambient agent on schedule that notifies via Slack or e-mail.
 
-This mode uses by default the `INVESTIGATION_TEMPLATES` prompt, to notify to Slack about CPU spikes in your organization and find culprits. Adapt the prompt to your specific needs.
+This mode uses by default the [INVESTIGATION_TEMPLATES](https://github.com/tinybirdco/ai/blob/02d1c9994bd647a9dc4e962bcd382d3651abf017/agents/birdwatcher/prompts.py#L54) prompt, to notify to Slack about CPU spikes in your organization and find culprits. Adapt the prompt to your specific needs.
 
 ```sh
 uv run python birdwatcher.py --prompt "investigate cpu spikes in the last day and notify to #tmp-birdwatcher Slack channel"
