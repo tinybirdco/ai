@@ -41,7 +41,7 @@ Pre-requisites:
 2. Create a [Slack app](https://api.slack.com/apps)
 3. Tinybird account
 
-*Step 1: Deploy the Tinybird project*
+**Step 1: Deploy the Tinybird project**
 
 ```bash
 cd ai/agents/birdwatcher/tinybird
@@ -53,7 +53,7 @@ tb --cloud deploy
 tb token copy "admin token"
 ```
 
-*Step 2: Deploy the Slack Bot API (via Railway)*
+**Step 2: Deploy the Slack Bot API (via Railway)**
 
 ```bash
 # Install the Railway CLI
@@ -91,7 +91,7 @@ railway up
 railway domain
 ```
 
-*Step 3: Slack App Configuration*
+**Step 3: Slack App Configuration**
 
 Use this `App Manifest`
 
