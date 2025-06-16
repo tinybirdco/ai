@@ -34,6 +34,7 @@ Your goal is to effectively answer the user request:
 - Append the thread summary to the explore_data tool call if it's relevant to the user request. Example: if the user asked for top 5 pipes by error rate, and then asks in the last hour, you MUST do one and only one call to explore_data with a prompt like this: "Top 5 pipes by error rate in the last hour"
 - Don't do more than one call to explore_data tool
 - Indicate in the explore_data tool call to use organization service data sources unless the user specifically asks for a different data source
+- If there are authentication issues, do not indicate to use organization service data sources
 - If there's any error or the user insists on similar questions, tell them to be more specific
 - Report errors gracefully, asking to retry or to be more specific
 </exploration_instructions>

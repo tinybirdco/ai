@@ -1,6 +1,7 @@
-agents/agno/tmp
-agents/agno/examples
+agents/birdwatcher/tmp
+agents/birdwatcher/examples
 agents/pydantic
+
 
 __pycache__/
 *.py[cod]

@@ -32,9 +32,9 @@ async def create_agno_agent(
     tinybird_host=None,
     tinybird_api_key=None,
 ):
-    use_storage = os.getenv("PG_USER") and os.getenv("PG_PWD")
+    use_storage = os.getenv("PG_URL")
     if use_storage:
-        db_url = f"postgresql://postgres.{os.getenv('PG_USER')}:{os.getenv('PG_PWD')}@aws-0-eu-west-1.pooler.supabase.com:6543/postgres"
+        db_url = os.getenv("PG_URL")
         memory = Memory(
             model=Claude(id="claude-4-sonnet-20250514"),
             db=PostgresMemoryDb(table_name="user_memories", db_url=db_url),
@@ -76,8 +76,8 @@ async def create_agno_agent(
             id="gemini-2.0-flash",
             vertexai=True,
             # api_key=os.getenv("VERTEX_API_KEY"),
-            project_id=os.getenv("GOOGLE_CLOUD_PROJECT", "gen-lang-client-0705305160"),
-            location=os.getenv("GOOGLE_CLOUD_LOCATION", "europe-west1"),
+            project_id=os.getenv("GOOGLE_CLOUD_PROJECT", ""),
+            location=os.getenv("GOOGLE_CLOUD_LOCATION", ""),
         ),
         # model=OpenAIChat(id="o3-mini"),
         # model=Claude(id="claude-4-opus-20250514"),
@@ -120,7 +120,6 @@ async def run_single_command(prompt, user_id="alrocar"):
     if not tinybird_api_key:
         raise ValueError("TINYBIRD_API_KEY is not set")
     tinybird_host = os.getenv("TINYBIRD_HOST")
-    tinybird_host="https://api.us-east.tinybird.co"
     memory_agent, mcp_tools, _ = await create_agno_agent(
         system_prompt=SYSTEM_PROMPT,
         instructions=[dedent(INVESTIGATION_TEMPLATES)],
@@ -174,8 +173,6 @@ async def main():
 
     print("🤖 Birdwatcher Chat CLI")
     print("Type 'exit' to quit")
-    print("Example: Run a health check on ingestion, requests, storage, cpu usage and errors")
-    print("Example: Report anomalies and trends by workspace, datasource and pipeline")
     print("Example: Find pipes with the most errors in the last 24 hours")
     print("-" * 50)
 

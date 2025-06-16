@@ -4,7 +4,6 @@ Server script for running the Agno Slack bot
 """
 import os
 import sys
-import asyncio
 from aiohttp import web
 
 # Add current directory to Python path
@@ -20,4 +19,4 @@ if __name__ == "__main__":
     try:
         web.run_app(app, host="0.0.0.0", port=port)
     except KeyboardInterrupt:
-        print("\n�� Server stopped")
+        print("\nServer stopped")

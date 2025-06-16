@@ -4,7 +4,7 @@ import os
 import aiohttp
 import re
 import asyncio
-from memory_chat import create_agno_agent
+from birdwatcher import create_agno_agent
 from prompts import SYSTEM_PROMPT, EXPLORATIONS_PROMPT
 from textwrap import dedent
 import tempfile
@@ -391,6 +391,11 @@ async def health_check(request):
         "status": "healthy",
         "service": "agno-slack-bot"
     })
+
+# Add root path health check
+@routes.get('/')
+async def health_check(request):
+    return web.Response(text='OK', status=200)
 
 async def handle_slack_event(event):
     try:
