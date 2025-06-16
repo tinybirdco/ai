@@ -6,11 +6,11 @@ This is the Birdwatcher Slack agent that provides data analysis capabilities for
 
 1. **Railway Account**
 2. **Slack App**
-3. **A Tinybird Account** 
+3. **Tinybird Account** 
 
 ### Deployment
 
-Deploy a Tinybird project to store Birdwatcher configuration
+Deploy a Tinybird project to store Birdwatcher workspace configuration:
 
 ```bash
 cd ai/agents/birdwatcher/tinybird
@@ -22,7 +22,7 @@ tb --cloud deploy
 tb token copy "admin token"
 ```
 
-Deploy the Slack bot API to use Birdwatcher
+Deploy the Slack bot API that uses the Birdwatcher agent:
 
 ```bash
 # macOS
@@ -53,7 +53,7 @@ railway variables --set SLACK_BOT_TOKEN=xoxb-your-bot-token
 # curl -H "Authorization: Bearer $SLACK_BOT_TOKEN" https://slack.com/api/auth.test
 railway variables --set SLACK_BOT_USER_ID=your-bot-user-id
    
-# The bot uses Gemini models, but you can adapt to other model
+# The bot uses Gemini models, but you can adapt the code to any other model
 # set Google Cloud credentials, use JSON content (not file path):
 railway variables --set GOOGLE_APPLICATION_CREDENTIALS='{"type":"service_account","project_id":"your-project-id","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"...","client_id":"...","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"..."}'
 railway variables --set GOOGLE_CLOUD_PROJECT=
@@ -61,6 +61,7 @@ railway variables --set GOOGLE_CLOUD_LOCATION=
 
 # This is to store Birdwatcher Tinybird tokens on /birdwatcher-config
 railway variables --set TINYBIRD_BIRDWATCHER_TOKEN=
+# This is to encrypt config tokens
 # generate with python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())" or similar
 railway variables --set ENCRYPTION_KEY=
 
