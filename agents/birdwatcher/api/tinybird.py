@@ -135,12 +135,7 @@ class TinybirdConfig:
                         result = await response.json()
                         if result.get("data") and len(result["data"]) > 0:
                             config = result["data"][0]
-                            return {
-                                "tinybird_token": config["token"],
-                                "tinybird_host": config["host"],
-                                "updated_by": config["user_id"],
-                                "updated_at": config["updated_at"]
-                            }
+                            return config
                         logger.info(f"No configuration found for channel {channel_id}")
                         return None
                     else:
@@ -151,6 +146,43 @@ class TinybirdConfig:
         except Exception as e:
             logger.error(f"Error getting channel configuration: {str(e)}")
             return None
+
+    async def save_event(self, event_data: Dict, table_name: str) -> bool:
+        """
+        Save an event to Tinybird events API.
+        
+        Args:
+            event_data (Dict): Event data to save
+            table_name (str): Name of the Tinybird table to save to
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Convert to NDJSON format
+            ndjson_data = json.dumps(event_data) + "\n"
+            
+            # Make async POST request to Tinybird events API
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.host}/v0/events"
+                params = {"name": table_name}
+                headers = {
+                    "Authorization": f"Bearer {self.token}",
+                    "Content-Type": "application/x-ndjson"
+                }
+                
+                async with session.post(url, params=params, headers=headers, data=ndjson_data) as response:
+                    if response.status == 202:
+                        logger.info(f"Successfully saved event to {table_name}")
+                        return True
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"Failed to save event. Status: {response.status}, Error: {error_text}")
+                        return False
+                        
+        except Exception as e:
+            logger.error(f"Error saving event: {str(e)}")
+            return False
 
     async def save_channel_config(self, channel_id: str, config: Dict) -> bool:
         """
@@ -173,29 +205,36 @@ class TinybirdConfig:
                 "updated_at": datetime.now().isoformat()
             }
             
-            # Convert to NDJSON format
-            ndjson_data = json.dumps(event_data) + "\n"
-            
-            # Make async POST request to Tinybird events API
-            async with aiohttp.ClientSession() as session:
-                url = f"{self.host}/v0/events"
-                params = {"name": "user_tokens"}
-                headers = {
-                    "Authorization": f"Bearer {self.token}",
-                    "Content-Type": "application/x-ndjson"
-                }
-                
-                async with session.post(url, params=params, headers=headers, data=ndjson_data) as response:
-                    if response.status == 202:
-                        logger.info(f"Successfully saved configuration for channel {channel_id}")
-                        return True
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"Failed to save configuration. Status: {response.status}, Error: {error_text}")
-                        return False
+            return await self.save_event(event_data, "user_tokens")
                         
         except Exception as e:
             logger.error(f"Error saving channel configuration: {str(e)}")
+            return False
+
+    async def save_notification_config(self, channel_id: str, config: Dict) -> bool:
+        """
+        Save notification configuration for a specific channel to Tinybird events API.
+        
+        Args:
+            channel_id (str): Slack channel ID
+            config (Dict): Notification configuration to save
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Prepare the event data according to the schema
+            event_data = {
+                "user_id": config.get("updated_by", "unknown"),
+                "channel_id": channel_id,
+                "notification_types": config.get("notification_types", []),
+                "updated_at": datetime.now().isoformat()
+            }
+            
+            return await self.save_event(event_data, "notification_configs")
+                        
+        except Exception as e:
+            logger.error(f"Error saving notification configuration: {str(e)}")
             return False
 
 
@@ -248,7 +287,7 @@ if __name__ == '__main__':
                 logger.info(f"Configuration saved for channel {channel_id}")
             
             # Get configuration
-            saved_config = await config_handler.get_channel_config(channel_id, "U1234567890")
+            saved_config = await config_handler.get_channel_config(channel_id)
             if saved_config:
                 # Decrypt token for logging (don't do this in production)
                 if 'tinybird_token' in saved_config:

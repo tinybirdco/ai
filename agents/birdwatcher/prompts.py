@@ -33,14 +33,13 @@ Your goal is to effectively answer the user request:
 - You MUST explicitly answer just the user request using the explore_data tool once and only once
 - Append the thread summary to the explore_data tool call if it's relevant to the user request. Example: if the user asked for top 5 pipes by error rate, and then asks in the last hour, you MUST do one and only one call to explore_data with a prompt like this: "Top 5 pipes by error rate in the last hour"
 - Don't do more than one call to explore_data tool
-- Indicate in the explore_data tool call to use organization service data sources unless the user specifically asks for a different data source
-- If there are authentication issues, do not indicate to use organization service data sources
+- If list_service_datasources returns organization data sources, indicate "use organization service data sources" in the explore_data tool call
 - If there's any error or the user insists on similar questions, tell them to be more specific
 - Report errors gracefully, asking to retry or to be more specific
 </exploration_instructions>
 <text_to_sql_instructions>
 - You MUST use the text_to_sql tool when the user specifically asks for SQL response. 
-- Indicate in the text_to_sql tool call to use organization service data sources unless the user specifically asks for a different data source
+- If list_service_datasources returns organization data sources, indicate "use organization service data sources" in the text_to_sql tool call
 - You MUST use the execute_query tool when the user specifically asks to run a given SQL query 
 </text_to_sql_instructions>
 <slack_instructions>
@@ -65,9 +64,8 @@ Investigation Plan: CPU Usage Spike Analysis
 - Metric: metric='LoadAverage1'
 - Analysis: Calculate the maximum load per minute
 - Threshold: Load average greater than 60 (spike indicator)
-- Output: Extract precise timeframes of any spikes, it's needed for the next steps
 - Priority: If multiple spikes exist, select the most relevant one
-- Attributes: timeframe expanded to several minutes that include the spike, list of workspace_ids, workspace_names from organization.workspaces filtering by organization_id if available. Use them to filter in next steps
+- Output: extract the timeframe expanded to several minutes that include the spike, list of workspace_ids, workspace_names from `organization.workspaces` filtering by organization_id if available. Use them to filter in next steps
 
 2. Correlate and Find Root Causes
 Once the spike timeframe is identified, investigate other metrics from the following datasources within the same timeframe:
@@ -104,7 +102,7 @@ You MUST report the workspace names in the summary, filter organization.workspac
 
 3. Summarize and Notify
 - Summarize investigation findings
-- You MUST send a structured slack message to #tmp-birdwatcher
+- You MUST send a structured slack message
 - You MUST include all relevant quantitative metrics and a timeframe (start, end) around the spike
 - See example message below but it's not complete, you MUST include all relevant metrics and workspaces
 <slack_example_message>

@@ -54,6 +54,13 @@ async def save_channel_config(channel_id, config):
             return False
     return await tinybird_config.save_channel_config(channel_id, config)
 
+async def save_notification_config(channel_id, config):
+    """Save notification config for a specific channel to Tinybird"""
+    if not tinybird_config:
+        if not await init_tinybird_config():
+            return False
+    return await tinybird_config.save_notification_config(channel_id, config)
+
 def create_config_modal(channel_id):
     """Create the configuration modal using Slack Blocks"""
     modal = {
@@ -82,6 +89,13 @@ def create_config_modal(channel_id):
             },
             {
                 "type": "divider"
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Get your Tinybird token from <https://cloud.tinybird.co/tokens|your tokens page> and your API host from <https://www.tinybird.co/docs/api-reference?q=region#regions-and-endpoints|here>"
+                }
             },
             {
                 "type": "input",
@@ -118,10 +132,115 @@ def create_config_modal(channel_id):
                         "text": "e.g., https://api.tinybird.co"
                     }
                 }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Learn how to deploy your own agent in <https://github.com/tinybirdco/ai/blob/main/agents/birdwatcher/README.md|our README>"
+                }
             }
         ]
     }
     
+    return modal
+
+def create_notifications_modal(channel_id, existing_config=None):
+    """Create the notifications subscription modal using Slack Blocks"""
+    # Get existing notification types or default to empty list
+    notification_types = existing_config.get("notification_types", []) if existing_config else []
+    
+    # Create initial options list only if there are selected types
+    initial_options = []
+    if "daily_summary" in notification_types:
+        initial_options.append({
+            "text": {
+                "type": "plain_text",
+                "text": "Daily metrics summary"
+            },
+            "value": "daily_summary"
+        })
+    if "cpu_spikes" in notification_types:
+        initial_options.append({
+            "text": {
+                "type": "plain_text",
+                "text": "CPU spikes"
+            },
+            "value": "cpu_spikes"
+        })
+    
+    # Create checkbox element configuration
+    checkbox_element = {
+        "type": "checkboxes",
+        "action_id": "notification_options",
+        "options": [
+            {
+                "text": {
+                    "type": "plain_text",
+                    "text": "Daily metrics summary"
+                },
+                "value": "daily_summary"
+            },
+            {
+                "text": {
+                    "type": "plain_text",
+                    "text": "CPU spikes"
+                },
+                "value": "cpu_spikes"
+            }
+        ]
+    }
+    
+    # Only add initial_options if there are any
+    if initial_options:
+        checkbox_element["initial_options"] = initial_options
+    
+    modal = {
+        "type": "modal",
+        "callback_id": "agno_notifications_modal",
+        "title": {
+            "type": "plain_text",
+            "text": "Notifications"
+        },
+        "submit": {
+            "type": "plain_text",
+            "text": "Save"
+        },
+        "close": {
+            "type": "plain_text",
+            "text": "Cancel"
+        },
+        "private_metadata": channel_id,
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*Configure notifications for:* <#{channel_id}>"
+                }
+            },
+            {
+                "type": "divider"
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Select the notifications you want to receive in this channel:"
+                }
+            },
+            {
+                "type": "input",
+                "block_id": "notification_options_block",
+                "optional": True,
+                "label": {
+                    "type": "plain_text",
+                    "text": "Notification Preferences"
+                },
+                "element": checkbox_element
+            }
+        ]
+    }
     return modal
 
 def is_thinking_message(text):
@@ -365,6 +484,12 @@ async def handle_slack(request):
                         "response_type": "ephemeral",
                         "text": "Opening configuration modal..."
                     })
+                elif command == "/birdwatcher-notifications":
+                    await handle_notifications_command(parsed_data)
+                    return web.json_response({
+                        "response_type": "ephemeral",
+                        "text": "Opening notifications modal..."
+                    })
 
             except Exception as e:
                 print(f"Error parsing form data: {e}")
@@ -446,42 +571,6 @@ async def handle_slack_event(event):
         print(f"==================")
 
         if not user_message or not user:
-            return
-
-        # Check if bot is mentioned in the message or if it's an app_mention event
-        bot_mentioned = False
-        
-        if event_type == "app_mention":
-            # This is a direct mention event
-            bot_mentioned = True
-            print("Bot mentioned via app_mention event")
-        elif event_type == "message.im":
-            # In DMs, all messages are directed to the bot
-            bot_mentioned = True
-            print("Message received in DM")
-        elif channel.startswith('D'):
-            # This is a DM channel, treat all messages as directed to the bot
-            bot_mentioned = True
-            print("Message received in DM channel")
-        elif bot_user_id and f"<@{bot_user_id}>" in user_message:
-            # Bot is mentioned in the message text
-            bot_mentioned = True
-            print("Bot mentioned in message text")
-        elif "Reminder:" in user_message and bot_user_id and f"<@{bot_user_id}>" in user_message:
-            # This is a reminder message mentioning the bot
-            bot_mentioned = True
-            print("Bot mentioned in reminder message")
-
-        # Only respond if bot is mentioned
-        if not bot_mentioned:
-            print(f"Bot not mentioned in message, ignoring: {user_message}")
-            return
-
-        # Clean up the mention and "Reminder:" prefix from the message
-        user_message = re.sub(r"<@[A-Z0-9]+>", "", user_message).strip()
-        user_message = re.sub(r"^Reminder:\s*", "", user_message).strip()
-
-        if not user_message:
             await send_slack_message(
                 channel,
                 "Hi! Ask me about your organization metrics or data analysis.",
@@ -701,6 +790,66 @@ async def handle_config_command(parsed_data):
                 f"❌ Error processing configuration command: {str(e)}"
             )
 
+async def handle_notifications_command(parsed_data):
+    """Handle the /birdwatcher-notifications command"""
+    try:
+        user_id = parsed_data.get("user_id", "")
+        channel_id = parsed_data.get("channel_id", "")
+        trigger_id = parsed_data.get("trigger_id", "")
+        response_url = parsed_data.get("response_url", "")
+
+        # Get existing configuration
+        channel_config = await get_channel_config(channel_id, user_id)
+        print(f"Channel config: {channel_config}")
+        modal = create_notifications_modal(channel_id, channel_config)
+
+        # Open modal using Slack API
+        slack_token = os.environ.get("SLACK_TOKEN", "")
+        if not slack_token:
+            await send_followup_response(
+                response_url,
+                "❌ Error: Bot token not configured"
+            )
+            return
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    "https://slack.com/api/views.open",
+                    json={
+                        "trigger_id": trigger_id,
+                        "view": modal
+                    },
+                    headers={
+                        "Authorization": f"Bearer {slack_token}",
+                        "Content-Type": "application/json"
+                    }
+                ) as response:
+                    response_data = await response.json()
+
+                    if not response_data.get("ok"):
+                        error_msg = response_data.get("error", "Unknown error")
+                        await send_followup_response(
+                            response_url,
+                            f"❌ Error opening notifications modal: {error_msg}"
+                        )
+                        return
+
+        except Exception as e:
+            print(f"Error opening modal: {e}")
+            await send_followup_response(
+                response_url,
+                f"❌ Error opening notifications modal: {str(e)}"
+            )
+
+    except Exception as e:
+        print(f"Error handling notifications command: {e}")
+        if "response_url" in locals():
+            await send_followup_response(
+                response_url,
+                f"❌ Error processing notifications command: {str(e)}"
+            )
+
 async def send_ephemeral_message(channel: str, user: str, text: str):
     """Send an ephemeral message to a channel using aiohttp"""
     try:
@@ -732,46 +881,80 @@ async def handle_modal_submission(payload):
     """Handle modal submission for configuration"""
     try:
         view = payload.get("view", {})
+        callback_id = view.get("callback_id")
         channel_id = view.get("private_metadata")
         user_id = payload.get("user", {}).get("id")
         values = view.get("state", {}).get("values", {})
 
-        # Extract form values
-        tinybird_host = values.get("tinybird_host_block", {}).get("tinybird_host", {}).get("value", "")
-        tinybird_token = values.get("tinybird_token_block", {}).get("tinybird_token", {}).get("value", "")
+        if callback_id == "agno_config_modal":
+            # Handle configuration modal submission
+            tinybird_host = values.get("tinybird_host_block", {}).get("tinybird_host", {}).get("value", "")
+            tinybird_token = values.get("tinybird_token_block", {}).get("tinybird_token", {}).get("value", "")
 
-        # Validate required fields
-        if not tinybird_token:
-            return {
-                "response_action": "errors",
-                "errors": {
-                    "tinybird_token_block": "Tinybird token is required" if not tinybird_token else None,
+            # Validate required fields
+            if not tinybird_token:
+                return {
+                    "response_action": "errors",
+                    "errors": {
+                        "tinybird_token_block": "Tinybird token is required" if not tinybird_token else None,
+                    }
                 }
+
+            # Save configuration
+            config = {
+                "tinybird_host": tinybird_host or '',
+                "tinybird_token": encrypt_token(tinybird_token) or '',
+                "updated_by": user_id,
+                "updated_at": datetime.now().isoformat()
             }
 
-        # Save configuration
-        config = {
-            "tinybird_host": tinybird_host or '',
-            "tinybird_token": encrypt_token(tinybird_token) or '',
-            "updated_by": user_id,
-            "updated_at": datetime.now().isoformat()
-        }
-
-        success = await save_channel_config(channel_id, config)
-        if not success:
-            return {
-                "response_action": "errors",
-                "errors": {
-                    "tinybird_token_block": "Failed to save configuration"
+            success = await save_channel_config(channel_id, config)
+            if not success:
+                return {
+                    "response_action": "errors",
+                    "errors": {
+                        "tinybird_token_block": "Failed to save configuration"
+                    }
                 }
-            }
 
-        # Send confirmation message
-        await send_ephemeral_message(
-            channel_id,
-            user_id,
-            "✅ Birdwatcher configuration updated successfully!"
-        )
+            # Send confirmation message
+            await send_ephemeral_message(
+                channel_id,
+                user_id,
+                "✅ Birdwatcher configuration updated successfully!"
+            )
+
+        elif callback_id == "agno_notifications_modal":
+            # Handle notifications modal submission
+            selected_options = values.get("notification_options_block", {}).get("notification_options", {}).get("selected_options", [])
+            
+            # Convert selected options to a list of values
+            notification_types = [option.get("value") for option in selected_options]
+            
+            # Save notification preferences
+            config = {
+                "notification_types": notification_types,
+                "updated_by": user_id,
+                "channel_id": channel_id,
+                "updated_at": datetime.now().isoformat()
+            }
+            
+            success = await save_notification_config(channel_id, config)
+            
+            if not success:
+                return {
+                    "response_action": "errors",
+                    "errors": {
+                        "notification_options_block": "Failed to save notification preferences"
+                    }
+                }
+
+            # Send confirmation message
+            await send_ephemeral_message(
+                channel_id,
+                user_id,
+                "✅ Notification preferences updated successfully!"
+            )
 
         return {"response_action": "clear"}
 
@@ -780,7 +963,7 @@ async def handle_modal_submission(payload):
         return {
             "response_action": "errors",
             "errors": {
-                "tinybird_token_block": f"Error saving configuration: {str(e)}"
+                "notification_options_block": f"Error saving preferences: {str(e)}"
             }
         }
 
