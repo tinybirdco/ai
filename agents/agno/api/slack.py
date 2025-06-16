@@ -396,8 +396,7 @@ async def handle_slack_event(event):
     try:
         # Allow USLACKBOT messages if they're reminders
         is_reminder = "Reminder:" in event.get("text", "")
-        is_slackbot = event.get("user") == "USLACKBOT"
-        if (event.get("bot_id") or event.get("subtype") == "bot_message") and not is_reminder and not is_slackbot:
+        if (event.get("bot_id") or event.get("subtype") == "bot_message") and not is_reminder:
             return
 
         bot_user_id = os.environ.get("SLACK_BOT_USER_ID", "U08V1K4MXFD")
@@ -422,12 +421,8 @@ async def handle_slack_event(event):
         message_id = f"{channel}_{ts}_{user}"
         
         # For non-reminder messages, check if already processed
-        if not is_reminder and is_message_processed(message_id):
+        if is_message_processed(message_id):
             print(f"Message already processed, skipping: {message_id}")
-            return
-        
-        if is_slackbot and thread_ts:
-            print(f"Already responded to USLACKBOT message in thread, skipping: {message_id}")
             return
 
         # Mark message as processed BEFORE sending any responses
@@ -500,13 +495,12 @@ async def handle_slack_event(event):
                     return
 
         # Send thinking message only if not from USLACKBOT
-        if not is_slackbot:
-            print(f"Sending thinking message to channel {channel}, reply_thread_ts: {reply_thread_ts}")
-            await send_slack_message(
-                channel,
-                random.choice(THINKING_MESSAGES),
-                reply_thread_ts,
-            )
+        print(f"Sending thinking message to channel {channel}, reply_thread_ts: {reply_thread_ts}")
+        await send_slack_message(
+            channel,
+            random.choice(THINKING_MESSAGES),
+            reply_thread_ts,
+        )
 
         # Process with Agno
         response = await process_with_agno(
