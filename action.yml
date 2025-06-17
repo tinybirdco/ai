@@ -1,0 +1,75 @@
+name: 'Birdwatcher Agent'
+description: 'An agent to monitor your Tinybird workspaces and resources'
+
+inputs:
+  slack_token:
+    description: 'Slack Bot User OAuth Token'
+    required: false
+  google_application_credentials:
+    description: 'Google Cloud credentials JSON (base64 encoded)'
+    required: false
+  vertex_api_key:
+    description: 'Google Vertex AI API Key'
+    required: false
+  tinybird_token:
+    description: 'Tinybird API Token'
+    required: true
+  google_cloud_project:
+    description: 'Google Cloud Project ID'
+    required: false
+  google_cloud_location:
+    description: 'Google Cloud Location'
+    required: false
+  python_version:
+    description: 'Python version to use'
+    required: false
+    default: '3.11'
+  schedule:
+    description: 'Cron schedule for the action (default: 0 9 * * *)'
+    required: false
+    default: '0 9 * * *'
+  working_directory:
+    description: 'Directory containing the Birdwatcher agent code'
+    required: false
+    default: 'ai/agents/birdwatcher'
+  prompt:
+    description: 'Prompt to use for the Birdwatcher agent'
+    required: true
+    default: 'Report endpoint errors in the last 24 hours'
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python_version }}
+
+    - name: Install uv
+      shell: bash
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        cd ${{ inputs.working_directory }}
+        uv sync
+
+    - name: Run notification checks
+      shell: bash
+      env:
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ inputs.google_application_credentials }}
+        SLACK_TOKEN: ${{ inputs.slack_token }}
+        VERTEX_API_KEY: ${{ inputs.vertex_api_key }}
+        TINYBIRD_BIRDWATCHER_TOKEN: ${{ inputs.tinybird_token }}
+        GOOGLE_CLOUD_PROJECT: ${{ inputs.google_cloud_project }}
+        GOOGLE_CLOUD_LOCATION: ${{ inputs.google_cloud_location }}
+      run: |
+        cd ${{ inputs.working_directory }}
+        uv run python birdwatcher.py --prompt ${{ inputs.prompt }}
