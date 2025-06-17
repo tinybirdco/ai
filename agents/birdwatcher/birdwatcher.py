@@ -3,10 +3,9 @@ from agno.memory.v2.db.postgres import PostgresMemoryDb
 from agno.memory.v2.memory import Memory
 from agno.models.anthropic import Claude
 from agno.models.google import Gemini
-# from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAIChat
 
 from agno.storage.postgres import PostgresStorage
-from rich.pretty import pprint
 from agno.tools.resend import ResendTools
 from agno.tools.slack import SlackTools
 
@@ -15,7 +14,6 @@ from agno.tools.reasoning import ReasoningTools
 from agno.tools.thinking import ThinkingTools
 import tempfile
 import argparse
-import sys
 
 from prompts import *
 from textwrap import dedent
@@ -81,18 +79,21 @@ async def create_agno_agent(
         tools.append(ReasoningTools(add_instructions=True))
         tools.append(ThinkingTools(add_instructions=True))
 
-    agent = Agent(
-        model=Gemini(
-            # id="gemini-2.5-pro-preview-06-05",
-            # id="gemini-2.5-flash-preview-05-20",
-            id="gemini-2.0-flash",
+    model = os.getenv("MODEL", "gemini-2.0-flash")
+    if "gemini" in model:
+        model = Gemini(
+            id=model,
             vertexai=True,
-            # api_key=os.getenv("VERTEX_API_KEY"),
             project_id=os.getenv("GOOGLE_CLOUD_PROJECT", ""),
             location=os.getenv("GOOGLE_CLOUD_LOCATION", ""),
-        ),
-        # model=OpenAIChat(id="o3-mini"),
-        # model=Claude(id="claude-4-opus-20250514"),
+        )
+    elif "claude" in model:
+        model = Claude(id=model)
+    else:
+        model = OpenAIChat(id=model)
+
+    agent = Agent(
+        model=model,
         role=role,
         name=role,
         session_state={"current_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")},
