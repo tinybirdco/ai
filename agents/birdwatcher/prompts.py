@@ -66,7 +66,7 @@ Your goal is to effectively answer the user request
 - You MUST send a structured slack message
 - Start the message with the title "📣 Daily Summary"
 - Use backticks and Slack formatting for names, table names and code blocks
-- Format tables with Slack formatting
+- Do not use markdown formatting for tables
 </slack_instructions>
 """
 

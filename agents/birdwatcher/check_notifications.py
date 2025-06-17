@@ -53,11 +53,12 @@ async def run_notification_check(config):
             instructions = [dedent(INVESTIGATION_TEMPLATES)]
         elif notification_type == 'daily_summary':
             prompt = f"""Extract metrics from last 24 hours from these organization datasources: 
-                - organization.pipe_metrics_by_minute
-                - organization.datasource_metrics_by_minute
+                - organization.pipe_stats_rt
+                - organization.datasources_ops_log
                 - organization.jobs_log
             Build a metrics report understand the organization health: you must at least report workspace names, resource names, timeframes and relevant metrics. 
-            Relevant metrics include: increased error rates, increased latency, increased number of jobs, increased number of bytes processed, increased number of requests. 
+            Relevant metrics include: increased error rates, increased latency, increased number of jobs, increased number of bytes processed, increased number of requests.
+            You MUST report workspace names, resource names, and quantitative metrics during a given timeframe. 
             Notify to the slack channel with id: {channel_id}"""
             instructions = [dedent(DAILY_SUMMARY_PROMPT)]
         else:
