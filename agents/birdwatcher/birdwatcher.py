@@ -124,9 +124,9 @@ async def create_agno_agent(
 async def run_single_command(prompt, user_id="alrocar", instructions=None, reasoning=False):
     """Run a single command and exit - useful for cron jobs"""
     load_dotenv()
-    tinybird_api_key = os.getenv("TINYBIRD_API_KEY")
+    tinybird_api_key = os.getenv("TINYBIRD_TOKEN")
     if not tinybird_api_key:
-        raise ValueError("TINYBIRD_API_KEY is not set")
+        raise ValueError("TINYBIRD_TOKEN is not set")
     tinybird_host = os.getenv("TINYBIRD_HOST")
     memory_agent, mcp_tools, _ = await create_agno_agent(
         system_prompt=SYSTEM_PROMPT,
@@ -169,7 +169,7 @@ async def main():
     
     # Interactive chat mode
     user_id = args.user_id
-    tinybird_api_key = os.getenv("TINYBIRD_API_KEY")
+    tinybird_api_key = os.getenv("TINYBIRD_TOKEN")
     tinybird_host = os.getenv("TINYBIRD_HOST")
     memory_agent, mcp_tools, _ = await create_agno_agent(
         system_prompt=SYSTEM_PROMPT,
