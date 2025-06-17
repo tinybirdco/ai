@@ -39,6 +39,11 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: tinybirdco/ai
+        fetch-depth: 1
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -53,8 +58,6 @@ runs:
     - name: Install dependencies
       shell: bash
       run: |
-        echo $PWD
-        ls -lha
         cd ${{ inputs.working_directory }}
         uv sync
 
