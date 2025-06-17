@@ -164,7 +164,7 @@ async def main():
     
     # Single command mode
     if args.prompt:
-        await run_single_command(args.prompt, args.user_id)
+        await run_single_command(args.prompt, args.user_id, instructions=[dedent(BASE_EXPLORATION_PROMPT)])
         return
     
     # Interactive chat mode
