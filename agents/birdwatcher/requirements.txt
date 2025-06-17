@@ -17,3 +17,5 @@ python-dotenv>=1.0.0
 slack-bolt>=1.23.0
 aiohttp>=3.9.0
 ipdb>=0.13.13
+openai>=1.88.0
+anthropic>=0.54.0
