@@ -53,6 +53,8 @@ runs:
     - name: Install dependencies
       shell: bash
       run: |
+        echo $PWD
+        ls -lha
         cd ${{ inputs.working_directory }}
         uv sync
 
