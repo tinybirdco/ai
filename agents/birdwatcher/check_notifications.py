@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta
 from api.tinybird import decrypt_token
 from dotenv import load_dotenv
-from birdwatcher import run_single_command, EXPLORATIONS_PROMPT, INVESTIGATION_TEMPLATES
+from birdwatcher import run_single_command, EXPLORATIONS_PROMPT, INVESTIGATION_TEMPLATES, DAILY_SUMMARY_PROMPT
 from textwrap import dedent
 
 load_dotenv()
@@ -49,11 +49,11 @@ async def run_notification_check(config):
     
     for notification_type in notification_types:
         if notification_type == 'cpu_spikes':
-            prompt = f"investigate cpu spikes in the last day. notify to the slack channel with #room-birdwatcher-agent"
+            prompt = f"investigate cpu spikes in the last day. notify to the slack channel with id: {channel_id}"
             instructions = [dedent(INVESTIGATION_TEMPLATES)]
         elif notification_type == 'daily_summary':
-            prompt = f"report metrics for pipes, datasources and jobs in the last 24 hours. Use the explore_data tool to get the data and these datasources: organization.pipe_metrics_by_minute, organization.datasource_metrics_by_minute, organization.jobs_log. Run three times the explore_data tool with each one of these datasources to build a summary. Notify to the slack channel with id: {channel_id}"
-            instructions = [dedent(EXPLORATIONS_PROMPT)]
+            prompt = f"report metrics for pipes, datasources and jobs in the last 24 hours. Use the explore_data tool to get the data and these datasources: organization.pipe_metrics_by_minute, organization.datasource_metrics_by_minute, organization.jobs_log. Build a metrics relevant to the user to understand the organization health, report workspace names, resource names and relevant quantitative metrics for each timeframe. Notify to the slack channel with id: {channel_id}"
+            instructions = [dedent(DAILY_SUMMARY_PROMPT)]
         else:
             print(f"Unknown notification type: {notification_type}")
             continue
