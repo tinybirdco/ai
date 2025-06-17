@@ -64,13 +64,26 @@ runs:
     - name: Run notification checks
       shell: bash
       env:
+        # Set the model name to use
+        MODEL: ${{ inputs.model }}
+        # Now configure one of the supported providers
+        # Configure Gemini via Vertex AI
         GOOGLE_APPLICATION_CREDENTIALS: ${{ inputs.google_application_credentials }}
-        SLACK_TOKEN: ${{ inputs.slack_token }}
-        VERTEX_API_KEY: ${{ inputs.vertex_api_key }}
-        TINYBIRD_TOKEN: ${{ inputs.tinybird_token }}
-        TINYBIRD_HOST: ${{ inputs.tinybird_host }}
         GOOGLE_CLOUD_PROJECT: ${{ inputs.google_cloud_project }}
         GOOGLE_CLOUD_LOCATION: ${{ inputs.google_cloud_location }}
+        VERTEX_API_KEY: ${{ inputs.vertex_api_key }}
+        # or configure the Anthropic api key
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+        # or configure the OpenAI api key
+        OPENAI_API_KEY: ${{ inputs.openai_api_key }}
+        # Configure Slack
+        SLACK_TOKEN: ${{ inputs.slack_token }}
+        # Configure Tinybird Workspace or Organization token
+        # https://cloud.tinybird.co/tokens
+        TINYBIRD_TOKEN: ${{ inputs.tinybird_token }}
+        # https://www.tinybird.co/docs/api-reference?#regions-and-endpoints
+        TINYBIRD_HOST: ${{ inputs.tinybird_host }}
+        
       run: |
         cd ${{ inputs.working_directory }}
         uv run python birdwatcher.py --prompt "${{ inputs.prompt }}" -u github
