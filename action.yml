@@ -46,7 +46,7 @@ runs:
     - uses: actions/checkout@v4
       with:
         repository: tinybirdco/ai
-        token: ${{ secrets.REPO_ACCESS_TOKEN }}
+        token: ${{ github.token }}
         path: .github/actions/ai
         fetch-depth: 1
 
