@@ -39,7 +39,7 @@ inputs:
   working_directory:
     description: 'Directory containing the Birdwatcher agent code'
     required: false
-    default: 'ai/agents/birdwatcher'
+    default: 'agents/birdwatcher'
   prompt:
     description: 'Prompt to use for the Birdwatcher agent'
     required: true
