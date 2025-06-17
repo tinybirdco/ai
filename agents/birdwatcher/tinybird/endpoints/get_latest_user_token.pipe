@@ -24,7 +24,7 @@ SQL >
             AND channel_id = {{String(channel_id, '')}}
             {% end %}
         ORDER BY updated_at DESC
-        LIMIT 1)
+        LIMIT 1 by channel_id)
     USING channel_id
     WHERE 1
         {% if defined(user_id) %}
@@ -37,6 +37,6 @@ SQL >
         AND length(notification_types) > 0
         {% end %}
     ORDER BY updated_at DESC
-    LIMIT 1
+    LIMIT 1 by channel_id
 
 TYPE endpoint

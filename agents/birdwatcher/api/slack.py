@@ -152,7 +152,7 @@ def create_notifications_modal(channel_id, existing_config=None):
         initial_options.append({
             "text": {
                 "type": "plain_text",
-                "text": "Daily metrics summary"
+                "text": "Daily organization metrics summary"
             },
             "value": "daily_summary"
         })
@@ -160,7 +160,7 @@ def create_notifications_modal(channel_id, existing_config=None):
         initial_options.append({
             "text": {
                 "type": "plain_text",
-                "text": "CPU spikes"
+                "text": "Dedicated cluster health"
             },
             "value": "cpu_spikes"
         })
@@ -173,14 +173,14 @@ def create_notifications_modal(channel_id, existing_config=None):
             {
                 "text": {
                     "type": "plain_text",
-                    "text": "Daily metrics summary"
+                    "text": "Daily organization metrics summary"
                 },
                 "value": "daily_summary"
             },
             {
                 "text": {
                     "type": "plain_text",
-                    "text": "CPU spikes"
+                    "text": "Dedicated cluster health"
                 },
                 "value": "cpu_spikes"
             }

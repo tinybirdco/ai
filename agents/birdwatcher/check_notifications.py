@@ -84,6 +84,7 @@ async def main():
             
         # Process each configuration
         for config in response['data']:
+            print(config)
             await run_notification_check(config)
             
     except Exception as e:

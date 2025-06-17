@@ -152,7 +152,6 @@ async def run_single_command(prompt, user_id="alrocar", instructions=None, reaso
             
         except Exception as e:
             print(f"❌ Error: {e}")
-            sys.exit(1)
 
 
 async def main():
