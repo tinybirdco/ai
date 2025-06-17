@@ -52,7 +52,13 @@ async def run_notification_check(config):
             prompt = f"investigate cpu spikes in the last day. notify to the slack channel with id: {channel_id}"
             instructions = [dedent(INVESTIGATION_TEMPLATES)]
         elif notification_type == 'daily_summary':
-            prompt = f"report metrics for pipes, datasources and jobs in the last 24 hours. Use the explore_data tool to get the data and these datasources: organization.pipe_metrics_by_minute, organization.datasource_metrics_by_minute, organization.jobs_log. Build a metrics relevant to the user to understand the organization health, report workspace names, resource names and relevant quantitative metrics for each timeframe. Notify to the slack channel with id: {channel_id}"
+            prompt = f"""Extract metrics from last 24 hours from these organization datasources: 
+                - organization.pipe_metrics_by_minute
+                - organization.datasource_metrics_by_minute
+                - organization.jobs_log
+            Build a metrics report understand the organization health: you must at least report workspace names, resource names, timeframes and relevant metrics. 
+            Relevant metrics include: increased error rates, increased latency, increased number of jobs, increased number of bytes processed, increased number of requests. 
+            Notify to the slack channel with id: {channel_id}"""
             instructions = [dedent(DAILY_SUMMARY_PROMPT)]
         else:
             print(f"Unknown notification type: {notification_type}")
@@ -63,6 +69,7 @@ async def run_notification_check(config):
                 prompt=prompt,
                 user_id=user_id,
                 instructions=instructions,
+                reasoning=True,
             )        
         except Exception as e:
             print(f"Error running notification check: {str(e)}")

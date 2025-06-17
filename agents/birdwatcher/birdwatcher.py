@@ -12,6 +12,7 @@ from agno.tools.slack import SlackTools
 
 import json
 from agno.tools.reasoning import ReasoningTools
+from agno.tools.thinking import ThinkingTools
 import tempfile
 import argparse
 import sys
@@ -32,6 +33,7 @@ async def create_agno_agent(
     markdown=True,
     tinybird_host=None,
     tinybird_api_key=None,
+    reasoning=False,
 ):
     use_storage = os.getenv("PG_URL")
     if use_storage:
@@ -70,6 +72,15 @@ async def create_agno_agent(
         except json.JSONDecodeError:
             pass
 
+    tools=[
+        mcp_tools,
+        ResendTools(from_email="onboarding@resend.dev"),
+        SlackTools(),
+    ]
+    if reasoning:
+        tools.append(ReasoningTools(add_instructions=True))
+        tools.append(ThinkingTools(add_instructions=True))
+
     agent = Agent(
         model=Gemini(
             # id="gemini-2.5-pro-preview-06-05",
@@ -85,13 +96,8 @@ async def create_agno_agent(
         role=role,
         name=role,
         session_state={"current_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")},
-        tools=[
-            mcp_tools,
-            ResendTools(from_email="onboarding@resend.dev"),
-            SlackTools(),
-            # ReasoningTools(add_instructions=True),
-        ],
-        # reasoning=True,
+        tools=tools,
+        reasoning=reasoning,
         # memory=memory,
         # enable_agentic_memory=True,
         # enable_user_memories=True,
@@ -115,7 +121,7 @@ async def create_agno_agent(
     return agent, mcp_tools, credentials_file
 
 
-async def run_single_command(prompt, user_id="alrocar", instructions=None):
+async def run_single_command(prompt, user_id="alrocar", instructions=None, reasoning=False):
     """Run a single command and exit - useful for cron jobs"""
     load_dotenv()
     tinybird_api_key = os.getenv("TINYBIRD_API_KEY")
@@ -127,6 +133,7 @@ async def run_single_command(prompt, user_id="alrocar", instructions=None):
         instructions=instructions,
         tinybird_host=tinybird_host,
         tinybird_api_key=tinybird_api_key,
+        reasoning=reasoning,
     )
 
     async with mcp_tools:

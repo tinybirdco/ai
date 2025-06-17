@@ -91,13 +91,6 @@ def create_config_modal(channel_id):
                 "type": "divider"
             },
             {
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": "Get your Tinybird token from <https://cloud.tinybird.co/tokens|your tokens page> and your API host from <https://www.tinybird.co/docs/api-reference?q=region#regions-and-endpoints|here>"
-                }
-            },
-            {
                 "type": "input",
                 "block_id": "tinybird_token_block",
                 "label": {
@@ -114,7 +107,7 @@ def create_config_modal(channel_id):
                 },
                 "hint": {
                     "type": "plain_text",
-                    "text": "Token needs to have access to organization service data sources"
+                    "text": "https://cloud.tinybird.co/tokens"
                 }
             },
             {
@@ -131,6 +124,10 @@ def create_config_modal(channel_id):
                         "type": "plain_text",
                         "text": "e.g., https://api.tinybird.co"
                     }
+                },
+                "hint": {
+                    "type": "plain_text",
+                    "text": "https://www.tinybird.co/docs/api-reference?#regions-and-endpoints"
                 }
             },
             {
