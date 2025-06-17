@@ -91,6 +91,13 @@ def create_config_modal(channel_id):
                 "type": "divider"
             },
             {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "Get your Tinybird <https://cloud.tinybird.co/tokens|organization admin token> and <https://www.tinybird.co/docs/api-reference?#regions-and-endpoints|API host>"
+                }
+            },
+            {
                 "type": "input",
                 "block_id": "tinybird_token_block",
                 "label": {
@@ -104,10 +111,6 @@ def create_config_modal(channel_id):
                         "type": "plain_text",
                         "text": "Enter your Tinybird organization admin token"
                     }
-                },
-                "hint": {
-                    "type": "plain_text",
-                    "text": "https://cloud.tinybird.co/tokens"
                 }
             },
             {
@@ -124,17 +127,13 @@ def create_config_modal(channel_id):
                         "type": "plain_text",
                         "text": "e.g., https://api.tinybird.co"
                     }
-                },
-                "hint": {
-                    "type": "plain_text",
-                    "text": "https://www.tinybird.co/docs/api-reference?#regions-and-endpoints"
                 }
             },
             {
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": "Learn how to deploy your own agent in <https://github.com/tinybirdco/ai/blob/main/agents/birdwatcher/README.md|our README>"
+                    "text": "Learn how to build your own agent in <https://github.com/tinybirdco/ai/blob/main/agents/birdwatcher/README.md|our README>"
                 }
             }
         ]
