@@ -73,4 +73,4 @@ runs:
         GOOGLE_CLOUD_LOCATION: ${{ inputs.google_cloud_location }}
       run: |
         cd ${{ inputs.working_directory }}
-        uv run python birdwatcher.py --prompt "${{ inputs.prompt }}"
+        uv run python birdwatcher.py --prompt "${{ inputs.prompt }}" -u github
