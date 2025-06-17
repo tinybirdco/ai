@@ -14,6 +14,9 @@ inputs:
   tinybird_token:
     description: 'Tinybird API Token'
     required: true
+  tinybird_host:
+    description: 'Tinybird Host'
+    required: true
   google_cloud_project:
     description: 'Google Cloud Project ID'
     required: false
@@ -67,7 +70,8 @@ runs:
         GOOGLE_APPLICATION_CREDENTIALS: ${{ inputs.google_application_credentials }}
         SLACK_TOKEN: ${{ inputs.slack_token }}
         VERTEX_API_KEY: ${{ inputs.vertex_api_key }}
-        TINYBIRD_BIRDWATCHER_TOKEN: ${{ inputs.tinybird_token }}
+        TINYBIRD_TOKEN: ${{ inputs.tinybird_token }}
+        TINYBIRD_HOST: ${{ inputs.tinybird_host }}
         GOOGLE_CLOUD_PROJECT: ${{ inputs.google_cloud_project }}
         GOOGLE_CLOUD_LOCATION: ${{ inputs.google_cloud_location }}
       run: |
