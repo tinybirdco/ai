@@ -219,3 +219,54 @@ This mode uses by default the [INVESTIGATION_TEMPLATES](https://github.com/tinyb
 ```sh
 uv run python birdwatcher.py --prompt "investigate cpu spikes in the last day and notify to #tmp-birdwatcher Slack channel"
 ```
+
+# Birdwatcher Agent GitHub Action
+
+A GitHub Action that monitors your Tinybird workspaces and resources, sending notifications to Slack when needed.
+
+## Usage
+
+### Basic Usage
+
+```yaml
+name: Monitor Tinybird Resources
+
+on:
+  schedule:
+    - cron: '0 9 * * *'  # Runs daily at 9:00 UTC
+  workflow_dispatch:      # Allows manual triggering
+
+jobs:
+  monitor-resources:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: tinybirdco/ai@main
+        with:
+          slack_token: ${{ secrets.SLACK_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          tinybird_token: ${{ secrets.TINYBIRD_TOKEN }}
+          tinybird_host: ${{ secrets.TINYBIRD_HOST }}
+          prompt: 'Report endpoint errors in the last 24 hours. Send a Slack message to #tmp-birdwatcher with the results. No markdown.'
+          model: 'claude-4-sonnet-20250514'
+```
+
+### Required Secrets
+
+You need to set up the following secrets in your repository:
+
+- `TINYBIRD_TOKEN`: Tinybird API Token
+- `TINYBIRD_HOST`: Tinybird Host
+- `model`: Name of the LLM model to use
+
+Depending on the model selected you must configure the corresponding API key, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `GOOGLE_APPLICATION_CREDENTIALS`.
+
+Optionally configure your `SLACK_TOKEN` or `RESEND_TOKEN` to receive notifications with the agent response.
+
+## Security
+
+This action requires several sensitive credentials. Make sure to:
+1. Store all credentials as GitHub Secrets
+2. Use the minimum required permissions for each service
+3. Regularly rotate your credentials
+4. Review the action's code before using it
+
