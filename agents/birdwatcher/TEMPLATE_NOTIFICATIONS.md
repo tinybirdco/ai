@@ -6,12 +6,12 @@ Use it locally:
 
 ```sh
 git clone git@github.com:tinybirdco/ai.git
-cd nombre_del_repo/agents/birdwatcher
+cd ai/agents/birdwatcher
 # fill in environment variables for your Tinybird account and LLMs
 cp .env.example .env 
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
-uv run python birdwatcher.py –prompt “analyse website visits and notify me on #tmp-birdwatcher”
+uv run python birdwatcher.py --prompt “analyse website visits and notify me on #tmp-birdwatcher”
 ```
 
 Schedule as a GitHub Action:

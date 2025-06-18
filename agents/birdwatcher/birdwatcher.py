@@ -21,13 +21,21 @@ from agno.tools.mcp import MCPTools
 import os
 import asyncio
 from datetime import datetime
+import glob
 
 from dotenv import load_dotenv
+
+MISSIONS = {}
+missions_dir = os.path.join(os.path.dirname(__file__), 'missions')
+for path in glob.glob(os.path.join(missions_dir, '*.md')):
+    name = os.path.splitext(os.path.basename(path))[0]
+    MISSIONS[name] = path
 
 async def create_agno_agent(
     role="Autonomous Data Analyst",
     system_prompt=SYSTEM_PROMPT,
     instructions=None,
+    mission=None,
     markdown=True,
     tinybird_host=None,
     tinybird_api_key=None,
@@ -92,6 +100,16 @@ async def create_agno_agent(
     else:
         model = OpenAIChat(id=model)
 
+    if mission and mission in MISSIONS:
+        with open(MISSIONS[mission], 'r') as f:
+            mission_content = f.read()
+        if instructions is None:
+            instructions = [mission_content]
+        elif isinstance(instructions, list):
+            instructions.append(mission_content)
+        else:
+            instructions = [instructions, mission_content]
+
     agent = Agent(
         model=model,
         role=role,
@@ -122,7 +140,7 @@ async def create_agno_agent(
     return agent, mcp_tools, credentials_file
 
 
-async def run_single_command(prompt, user_id="alrocar", instructions=None, reasoning=False):
+async def run_single_command(prompt, user_id="alrocar", instructions=None, reasoning=False, mission=None):
     """Run a single command and exit - useful for cron jobs"""
     load_dotenv()
     tinybird_api_key = os.getenv("TINYBIRD_TOKEN")
@@ -132,6 +150,7 @@ async def run_single_command(prompt, user_id="alrocar", instructions=None, reaso
     memory_agent, mcp_tools, _ = await create_agno_agent(
         system_prompt=SYSTEM_PROMPT,
         instructions=instructions,
+        mission=mission,
         tinybird_host=tinybird_host,
         tinybird_api_key=tinybird_api_key,
         reasoning=reasoning,
@@ -159,13 +178,14 @@ async def main():
     load_dotenv()
     parser = argparse.ArgumentParser(description="Birdwatcher Agent - Interactive chat or single command mode")
     parser.add_argument("--prompt", "-p", type=str, help="Run a single command instead of interactive chat")
+    parser.add_argument("--mission", "-m", type=str, help="The agent mission instructions. Choose from: " + ", ".join(MISSIONS.keys()))
     parser.add_argument("--user-id", "-u", type=str, default="alrocar", help="User ID for memory storage")
     
     args = parser.parse_args()
     
     # Single command mode
     if args.prompt:
-        await run_single_command(args.prompt, args.user_id, instructions=[dedent(BASE_EXPLORATION_PROMPT)])
+        await run_single_command(args.prompt, args.user_id, mission="base")
         return
     
     # Interactive chat mode
@@ -175,7 +195,7 @@ async def main():
     memory_agent, mcp_tools, _ = await create_agno_agent(
         system_prompt=SYSTEM_PROMPT,
         # instructions=[dedent(ORGANIZATION_METRICS_PROMPT)] + [dedent(INVESTIGATION_TEMPLATES)],
-        instructions=[dedent(EXPLORATIONS_PROMPT)],
+        mission="explore",
         tinybird_host=tinybird_host,
         tinybird_api_key=tinybird_api_key,
         role="Analytics Agent",
