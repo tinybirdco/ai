@@ -11,7 +11,9 @@ cd ai/agents/birdwatcher
 cp .env.example .env 
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
-uv run python birdwatcher.py --prompt "analyse website visits and notify me on #tmp-birdwatcher" --mission base
+uv run python birdwatcher.py \
+   --prompt "analyse website visits and notify me on #tmp-birdwatcher" \
+   --mission base
 ```
 
 Schedule as a GitHub Action:
@@ -48,7 +50,9 @@ Find the available missions in the [missions](https://github.com/tinybirdco/ai/t
 To use a mission, you must provide a prompt and the mission (Markdown file) name:
 
 ```sh
-uv run python birdwatcher.py --prompt "Investigate cpu spikes in the last hour" --mission cpu_spikes
+uv run python birdwatcher.py \
+   --prompt "Investigate cpu spikes in the last hour" \
+   --mission cpu_spikes
 ```
 
 You can contribute your own missions or use the `--mission` flags to instruct the agent to run your custom analysis.
