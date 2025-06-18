@@ -41,11 +41,11 @@ jobs:
           model: 'claude-4-sonnet-20250514'
 ```
 
-## Missions
+## Missions
 
-Missions are predefined instructions so the Birdwatcher agent performs a given analysis.
+Missions are predefined instructions for the Birdwatcher agent to perform a given analysis.
 
-Find the available missions in the [missions](https://github.com/tinybirdco/ai/tree/main/agents/birdwatcher/missions) folder.
+Find the available missions in the [GitHub repository](https://github.com/tinybirdco/ai/tree/main/agents/birdwatcher/missions)
 
 To use a mission, you must provide a prompt and the mission (Markdown file) name:
 
@@ -56,3 +56,9 @@ uv run python birdwatcher.py \
 ```
 
 You can contribute your own missions or use the `--mission` flags to instruct the agent to run your custom analysis.
+
+```sh
+uv run python birdwatcher.py \
+   --prompt "Investigate cpu spikes in the last hour" \
+   --mission "<Your custom mission rules>"
+```
