@@ -5,7 +5,7 @@ import aiohttp
 import re
 import asyncio
 from birdwatcher import create_agno_agent
-from prompts import SYSTEM_PROMPT, EXPLORATIONS_PROMPT
+from prompts import SYSTEM_PROMPT
 from textwrap import dedent
 import tempfile
 import time
@@ -675,13 +675,14 @@ async def process_with_agno(
                 session_id = f"slack_{user_id}"
 
             if thread_context:
-                instructions = [f"You MUST reply in the same Slack thread as the user's message: Thread ts: {thread_ts}"] + [dedent(thread_context)] + [dedent(EXPLORATIONS_PROMPT)]
+                instructions = [f"You MUST reply in the same Slack thread as the user's message: Thread ts: {thread_ts}"] + [dedent(thread_context)]
             else:
-                instructions = [f"You MUST reply in the same Slack thread as the user's message: Thread ts: {thread_ts}"] + [dedent(EXPLORATIONS_PROMPT)]
+                instructions = [f"You MUST reply in the same Slack thread as the user's message: Thread ts: {thread_ts}"]
 
             agent, mcp_tools, _ = await create_agno_agent(
                 system_prompt=SYSTEM_PROMPT,
                 instructions=instructions,
+                mission="explore",
                 markdown=False,
                 tinybird_host=tinybird_host,
                 tinybird_api_key=tinybird_token,
