@@ -1,13 +1,13 @@
-Birdwatcher Notifications is a background open source agent that monitors your Tinybird workspace according to a prompt and notifies you as instructed
+Birdwatcher Notifications is an open-source background agent that monitors your Tinybird workspace based on a prompt and sends notifications as instructed
 
 ## Quickstart
 
-Use it locally:
+Use it locally by passing a prompt, and optionally specify a Slack channel or email address where you want to receive the response
 
 ```sh
 git clone git@github.com:tinybirdco/ai.git
 cd ai/agents/birdwatcher
-# fill in required environment variables for your Tinybird account and LLMs
+# Fill in the required environment variables for your Tinybird account and LLMs. Optionally, provide your Slack or Resend API keys to enable notifications
 cp .env.example .env 
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
@@ -16,7 +16,7 @@ uv run python birdwatcher.py \
    --mission base
 ```
 
-Schedule as a GitHub Action:
+Schedule it as a GitHub Action:
 
 ```yaml
 name: Birdwatcher Endpoint Errors Monitor
@@ -43,11 +43,11 @@ jobs:
 
 ## Missions
 
-Missions are predefined instructions for the Birdwatcher agent to perform a given analysis.
+Missions are predefined instructions that guide the Birdwatcher agent to perform specific analyses
 
-Find the available missions in the [GitHub repository](https://github.com/tinybirdco/ai/tree/main/agents/birdwatcher/missions)
+You can find the available missions in the [GitHub repository](https://github.com/tinybirdco/ai/tree/main/agents/birdwatcher/missions)
 
-To use a mission, you must provide a prompt and the mission (Markdown file) name:
+To use a mission, provide both a prompt and the name of the mission (Markdown file):
 
 ```sh
 uv run python birdwatcher.py \
@@ -55,7 +55,7 @@ uv run python birdwatcher.py \
    --mission cpu_spikes
 ```
 
-You can contribute your own missions or use the `--mission` flags to instruct the agent to run your custom analysis.
+You can contribute your own missions or use the `--mission` flag to instruct the agent to run a custom analysis.
 
 ```sh
 uv run python birdwatcher.py \
