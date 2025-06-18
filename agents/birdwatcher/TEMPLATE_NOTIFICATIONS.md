@@ -59,6 +59,6 @@ You can contribute your own missions or use the `--mission` flags to instruct th
 
 ```sh
 uv run python birdwatcher.py \
-   --prompt "Investigate cpu spikes in the last hour" \
+   --prompt "Analyze my web analytics metrics in the last month" \
    --mission "<Your custom mission rules>"
 ```
