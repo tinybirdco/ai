@@ -1,11 +1,9 @@
 import os
 import aiohttp
 import asyncio
-from datetime import datetime, timedelta
 from api.tinybird import decrypt_token
 from dotenv import load_dotenv
-from birdwatcher import run_single_command, EXPLORATIONS_PROMPT, INVESTIGATION_TEMPLATES, DAILY_SUMMARY_PROMPT
-from textwrap import dedent
+from birdwatcher import run_single_command
 
 load_dotenv()
 
@@ -50,7 +48,7 @@ async def run_notification_check(config):
     for notification_type in notification_types:
         if notification_type == 'cpu_spikes':
             prompt = f"investigate cpu spikes in the last day. notify to the slack channel with id: {channel_id}"
-            instructions = [dedent(INVESTIGATION_TEMPLATES)]
+            mission = "cpu_spikes"
         elif notification_type == 'daily_summary':
             prompt = f"""Extract metrics from last 24 hours from these organization datasources: 
                 - organization.pipe_stats_rt
@@ -60,7 +58,7 @@ async def run_notification_check(config):
             Relevant metrics include: increased error rates, increased latency, increased number of jobs, increased number of bytes processed, increased number of requests.
             You MUST report workspace names, resource names, and quantitative metrics during a given timeframe. 
             Notify to the slack channel with id: {channel_id}"""
-            instructions = [dedent(DAILY_SUMMARY_PROMPT)]
+            mission = "daily_summary"
         else:
             print(f"Unknown notification type: {notification_type}")
             continue
@@ -69,7 +67,7 @@ async def run_notification_check(config):
             await run_single_command(
                 prompt=prompt,
                 user_id=user_id,
-                instructions=instructions,
+                mission=mission,
                 reasoning=True,
             )        
         except Exception as e:

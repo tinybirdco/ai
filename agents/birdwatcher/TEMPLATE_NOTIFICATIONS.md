@@ -7,11 +7,11 @@ Use it locally:
 ```sh
 git clone git@github.com:tinybirdco/ai.git
 cd ai/agents/birdwatcher
-# fill in environment variables for your Tinybird account and LLMs
+# fill in required environment variables for your Tinybird account and LLMs
 cp .env.example .env 
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
-uv run python birdwatcher.py --prompt “analyse website visits and notify me on #tmp-birdwatcher”
+uv run python birdwatcher.py --prompt "analyse website visits and notify me on #tmp-birdwatcher" --mission base
 ```
 
 Schedule as a GitHub Action:
@@ -35,5 +35,6 @@ jobs:
           tinybird_token: ${{ secrets.TINYBIRD_TOKEN }}
           tinybird_host: ${{ secrets.TINYBIRD_HOST }}
           prompt: 'Report endpoint errors in the last 24 hours. Send a Slack message to #tmp-birdwatcher with the results. No markdown.'
+          mission: base
           model: 'claude-4-sonnet-20250514'
 ```

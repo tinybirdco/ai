@@ -100,15 +100,23 @@ async def create_agno_agent(
     else:
         model = OpenAIChat(id=model)
 
-    if mission and mission in MISSIONS:
-        with open(MISSIONS[mission], 'r') as f:
-            mission_content = f.read()
-        if instructions is None:
-            instructions = [mission_content]
-        elif isinstance(instructions, list):
-            instructions.append(mission_content)
+    if mission:
+        if mission in MISSIONS:
+            with open(MISSIONS[mission], 'r') as f:
+                mission_content = f.read()
+            if instructions is None:
+                instructions = [mission_content]
+            elif isinstance(instructions, list):
+                instructions.append(mission_content)
+            else:
+                instructions = [instructions, mission_content]
         else:
-            instructions = [instructions, mission_content]
+            if instructions is None:
+                instructions = [mission]
+            elif isinstance(instructions, list):
+                instructions.append(mission)
+            else:
+                instructions = [instructions, mission]
 
     agent = Agent(
         model=model,
@@ -185,7 +193,7 @@ async def main():
     
     # Single command mode
     if args.prompt:
-        await run_single_command(args.prompt, args.user_id, mission="base")
+        await run_single_command(args.prompt, args.user_id, mission=args.mission or "base")
         return
     
     # Interactive chat mode

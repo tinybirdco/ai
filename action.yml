@@ -40,6 +40,10 @@ inputs:
     description: 'Directory containing the Birdwatcher agent code'
     required: false
     default: 'agents/birdwatcher'
+  mission:
+    description: 'Mission to use for the Birdwatcher agent. See the agents/birdwatcher/missions directory for available missions or create your own.'
+    required: false
+    default: 'base'
   prompt:
     description: 'Prompt to use for the Birdwatcher agent'
     required: true
@@ -95,4 +99,4 @@ runs:
         
       run: |
         cd ${{ inputs.working_directory }}
-        uv run python birdwatcher.py --prompt "${{ inputs.prompt }}" -u github
+        uv run python birdwatcher.py --prompt "${{ inputs.prompt }}" -u github --mission "${{ inputs.mission }}"
