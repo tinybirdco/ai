@@ -1,8 +1,10 @@
-Birdwatcher Notifications is an open-source background agent that monitors your Tinybird workspace based on a prompt and sends notifications as instructed
+Birdwatcher is an open-source agent that provides data analysis capabilities for your data in Tinybird
+
+It connects to the [Tinybird MCP server](https://www.tinybird.co/docs/forward/work-with-data/mcp) using your Tinybird token and enables analytics via natural language
 
 ## Quickstart
 
-Use it locally by passing a prompt, and optionally specify a Slack channel or email address where you want to receive the response
+Use it locally by passing a prompt, and optionally specify a Slack channel or email address where you want to receive the response notification
 
 ```sh
 git clone git@github.com:tinybirdco/ai.git
@@ -51,7 +53,7 @@ To use a mission, provide both a prompt and the name of the mission (Markdown fi
 
 ```sh
 uv run python birdwatcher.py \
-   --prompt "Investigate cpu spikes in the last hour" \
+   --prompt "Investigate cpu spikes in the last hour and notify to alrocar@tinybird.co" \
    --mission cpu_spikes
 ```
 
@@ -59,6 +61,39 @@ You can contribute your own missions or use the `--mission` flag to instruct the
 
 ```sh
 uv run python birdwatcher.py \
-   --prompt "Analyze my web analytics metrics in the last month" \
+   --prompt "Analyze my web analytics metrics in the last month. Notify in #website-metrics" \
    --mission "<Your custom mission rules>"
+```
+
+## CLI mode
+
+```sh
+uv run python birdwatcher.py
+🤖 Birdwatcher Chat CLI
+--------------------------------------------------
+
+💬 You: top 5 pages with more visits in the last 24 hours
+┏━ Message ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                                                                         ┃
+┃ top 5 pages with more visits in the last 24 hours                                                                       ┃
+┃                                                                                                                         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+┏━ Response (26.1s) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                                                                         ┃
+┃ Here are the top 5 most visited pages in the last 24 hours:                                                             ┃
+┃                                                                                                                         ┃
+┃  1 Homepage (/) - 153 visits                                                                                            ┃
+┃  2 Documentation quick start page (/docs/forward/get-started/quick-start) - 50 visits                                   ┃
+┃  3 Pricing page (/pricing) - 42 visits                                                                                  ┃
+┃  4 Templates page (/templates) - 21 visits                                                                              ┃
+┃  5 Product page (/product) - 21 visits                                                                                  ┃
+┃                                                                                                                         ┃
+┃ The homepage is by far the most visited page, with nearly three times as many visits as the second most popular page.   ┃
+┃                                                                                                                         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+┏━ Session Summary ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                                                                         ┃
+┃ Session summary updated                                                                                                 ┃
+┃                                                                                                                         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ```
