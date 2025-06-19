@@ -135,7 +135,7 @@ async def create_agno_agent(
         read_chat_history=False,
         read_tool_call_history=False,
         enable_session_summaries=True,
-        description=dedent(system_prompt),
+        description=dedent(system_prompt).format(current_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
         instructions=instructions,
         # disabled
         search_previous_sessions_history=False,
