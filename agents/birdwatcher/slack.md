@@ -42,10 +42,10 @@ This is the general architecture.
               get user/channel token  token
                        |             |
                        v             v
-              ┌─────────────────┐ ┌─────────────┐
-              │birdwatcher_config│ │ Tinybird    │
-              │                 │ │ MCP         │
-              └─────────────────┘ └─────────────┘
+            ┌───────────────────┐   ┌──────────────┐
+            │birdwatcher_config │   │ Tinybird     │
+            │                   │   │ MCP          │
+            └───────────────────┘   └──────────────┘
                                            |
                                            token
                                            |
