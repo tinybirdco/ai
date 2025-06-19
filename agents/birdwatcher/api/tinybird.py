@@ -237,6 +237,86 @@ class TinybirdConfig:
             logger.error(f"Error saving notification configuration: {str(e)}")
             return False
 
+    async def save_slack_oauth_tokens(self, team_id: str, bot_token: str, bot_user_id: str, authed_user_id: str = None) -> bool:
+        """
+        Save Slack OAuth tokens for a workspace to Tinybird events API.
+        
+        Args:
+            team_id (str): Slack team/workspace ID
+            bot_token (str): Bot token from OAuth flow (will be encrypted)
+            bot_user_id (str): Bot user ID from OAuth flow
+            authed_user_id (str, optional): User ID who authorized the app
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Encrypt the bot token before storing
+            encrypted_bot_token = encrypt_token(bot_token)
+            if not encrypted_bot_token:
+                logger.error("Failed to encrypt bot token")
+                return False
+            
+            # Prepare the event data according to the schema
+            event_data = {
+                "team_id": team_id,
+                "bot_token": encrypted_bot_token,
+                "bot_user_id": bot_user_id,
+                "authed_user_id": authed_user_id or "unknown",
+                "updated_at": datetime.now().isoformat()
+            }
+            
+            return await self.save_event(event_data, "slack_oauth_tokens")
+                        
+        except Exception as e:
+            logger.error(f"Error saving Slack OAuth tokens: {str(e)}")
+            return False
+
+    async def get_slack_oauth_tokens(self, team_id: str) -> Optional[Dict]:
+        """
+        Get the latest Slack OAuth tokens for a workspace from Tinybird.
+        
+        Args:
+            team_id (str): Slack team/workspace ID
+            
+        Returns:
+            Optional[Dict]: OAuth tokens or None if not found
+        """
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.host}/v0/pipes/get_latest_slack_oauth_tokens.json"
+                params = {
+                    "team_id": team_id,
+                }
+                headers = {
+                    "Authorization": f"Bearer {self.token}"
+                }
+                
+                async with session.get(url, params=params, headers=headers) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        if result.get("data") and len(result["data"]) > 0:
+                            tokens = result["data"][0]
+                            # Decrypt the bot token
+                            if tokens.get("bot_token"):
+                                decrypted_token = decrypt_token(tokens["bot_token"])
+                                if decrypted_token:
+                                    tokens["bot_token"] = decrypted_token
+                                else:
+                                    logger.error("Failed to decrypt bot token")
+                                    return None
+                            return tokens
+                        logger.info(f"No OAuth tokens found for team {team_id}")
+                        return None
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"Failed to get OAuth tokens. Status: {response.status}, Error: {error_text}")
+                        return None
+                        
+        except Exception as e:
+            logger.error(f"Error getting Slack OAuth tokens: {str(e)}")
+            return None
+
 
 def create_tinybird_config(host: str = "https://api.europe-west2.gcp.tinybird.co", token: str = None) -> TinybirdConfig:
     """

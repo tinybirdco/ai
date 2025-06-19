@@ -309,9 +309,23 @@ def mark_message_processed(message_id):
     except Exception as e:
         print(f"Error marking message as processed: {e}")
 
-async def send_slack_message(channel: str, text: str, thread_ts: str = None):
+async def send_slack_message(channel: str, text: str, thread_ts: str = None, team_id: str = None):
     """Send a message to Slack using aiohttp"""
-    slack_token = os.environ.get("SLACK_TOKEN", "")
+    # Get bot token from stored OAuth tokens
+    slack_token = None
+    bot_user_id = None
+    if team_id:
+        tokens = await get_slack_tokens_for_team(team_id)
+        if tokens:
+            slack_token = tokens.get("bot_token")
+            bot_user_id = tokens.get("bot_user_id")
+        else:
+            # Fallback to environment variable for backward compatibility
+            slack_token = os.environ.get("SLACK_TOKEN", "")
+    else:
+        # Fallback to environment variable for backward compatibility
+        slack_token = os.environ.get("SLACK_TOKEN", "")
+    
     if not slack_token:
         print("ERROR: No SLACK_TOKEN found!")
         return False
@@ -373,9 +387,20 @@ async def send_followup_response(response_url: str, text: str):
         print(f"Error sending follow-up response: {e}")
         return False
 
-async def get_thread_history(channel: str, thread_ts: str, limit: int = 50):
+async def get_thread_history(channel: str, thread_ts: str, limit: int = 50, team_id: str = None):
     """Fetch thread history from Slack API using aiohttp"""
-    slack_token = os.environ.get("SLACK_TOKEN", "")
+    # Get bot token from stored OAuth tokens
+    if team_id:
+        tokens = await get_slack_tokens_for_team(team_id)
+        if tokens:
+            slack_token = tokens.get("bot_token")
+        else:
+            # Fallback to environment variable for backward compatibility
+            slack_token = os.environ.get("SLACK_TOKEN", "")
+    else:
+        # Fallback to environment variable for backward compatibility
+        slack_token = os.environ.get("SLACK_TOKEN", "")
+    
     if not slack_token or not thread_ts:
         return []
     
@@ -428,8 +453,11 @@ async def handle_slack(request):
             if data.get("type") == "event_callback":
                 event = data.get("event", {})
                 event_type = event.get("type", "")
+                team_id = data.get("team_id")  # team_id is at the top level of event_callback
 
                 if event_type in ["message", "app_mention", "message.im"]:
+                    # Add team_id to the event for easier access
+                    event["team_id"] = team_id
                     await handle_slack_event(event)
 
                 return web.json_response({
@@ -518,6 +546,90 @@ async def health_check(request):
 async def health_check(request):
     return web.Response(text='OK', status=200)
 
+@routes.get('/api/slack/oauth/callback')
+async def slack_oauth_callback(request):
+    """Slack OAuth callback for app installation."""
+    params = request.rel_url.query
+    code = params.get('code')
+    state = params.get('state')
+    error = params.get('error')
+
+    if error:
+        return web.Response(text=f"Slack OAuth error: {error}", status=400)
+
+    if not code:
+        return web.Response(text="No code provided.", status=400)
+
+    client_id = os.environ.get("SLACK_CLIENT_ID")
+    client_secret = os.environ.get("SLACK_CLIENT_SECRET")
+    redirect_uri = os.environ.get("SLACK_REDIRECT_URI")  # Optional, if you want to check
+
+    if not client_id or not client_secret:
+        return web.Response(text="Missing SLACK_CLIENT_ID or SLACK_CLIENT_SECRET in environment.", status=500)
+
+    # Exchange code for access token
+    token_url = "https://slack.com/api/oauth.v2.access"
+    data = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "code": code,
+    }
+    if redirect_uri:
+        data["redirect_uri"] = redirect_uri
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(token_url, data=data) as resp:
+            slack_response = await resp.json()
+            print(f"Slack OAuth response: {slack_response}")
+            if slack_response.get("ok"):
+                # Store the OAuth tokens in Tinybird
+                team_id = slack_response.get("team", {}).get("id")
+                bot_token = slack_response.get("access_token")
+                bot_user_id = slack_response.get("bot_user_id")
+                authed_user_id = slack_response.get("authed_user", {}).get("id")
+                
+                if team_id and bot_token and bot_user_id:
+                    # Initialize Tinybird config
+                    if not tinybird_config:
+                        if not await init_tinybird_config():
+                            return web.Response(text="Failed to initialize Tinybird config", status=500)
+                    
+                    # Save the OAuth tokens
+                    success = await tinybird_config.save_slack_oauth_tokens(
+                        team_id=team_id,
+                        bot_token=bot_token,
+                        bot_user_id=bot_user_id,
+                        authed_user_id=authed_user_id
+                    )
+                    
+                    if success:
+                        return web.Response(
+                            text="<h1>App installed successfully!</h1><p>Your Slack workspace is now connected to Birdwatcher. You can close this window.</p>", 
+                            content_type="text/html"
+                        )
+                    else:
+                        return web.Response(
+                            text="<h1>App installed but failed to save configuration</h1><p>Please contact support.</p>", 
+                            content_type="text/html"
+                        )
+                else:
+                    return web.Response(
+                        text="<h1>App installed but missing required tokens</h1><p>Please contact support.</p>", 
+                        content_type="text/html"
+                    )
+            else:
+                err = slack_response.get("error", "Unknown error")
+                return web.Response(text=f"Slack OAuth failed: {err}", status=400)
+
+async def get_slack_tokens_for_team(team_id: str):
+    """Get Slack OAuth tokens for a specific team from Tinybird"""
+    if not tinybird_config:
+        if not await init_tinybird_config():
+            return None
+    
+    tokens = await tinybird_config.get_slack_oauth_tokens(team_id)
+    return tokens
+
 async def handle_slack_event(event):
     try:
         # Allow USLACKBOT messages if they're reminders
@@ -525,7 +637,25 @@ async def handle_slack_event(event):
         if (event.get("bot_id") or event.get("subtype") == "bot_message") and not is_reminder:
             return
 
-        bot_user_id = os.environ.get("SLACK_BOT_USER_ID", "U08V1K4MXFD")
+        # Get team_id from the event - check multiple possible locations
+        team_id = event.get("team_id")
+        if not team_id:
+            # Sometimes team_id is in a nested structure
+            team_id = event.get("team", {}).get("id")
+        if not team_id:
+            # Check if it's in the parent event structure (we might need to pass this from the main handler)
+            team_id = event.get("parent_team_id")
+        
+        # Get bot user ID from stored tokens or fallback to environment
+        bot_user_id = None
+        if team_id:
+            tokens = await get_slack_tokens_for_team(team_id)
+            if tokens:
+                bot_user_id = tokens.get("bot_user_id")
+        
+        if not bot_user_id:
+            bot_user_id = os.environ.get("SLACK_BOT_USER_ID", "U08V1K4MXFD")
+        
         if bot_user_id and event.get("user") == bot_user_id:
             return
 
@@ -541,6 +671,7 @@ async def handle_slack_event(event):
         print(f"Channel ID: {channel}")
         print(f"Channel type: {'DM' if channel.startswith('D') else 'Channel'}")
         print(f"Event type: {event_type}")
+        print(f"Team ID: {team_id}")
         print(f"==================")
 
         # Create unique message ID for deduplication
@@ -564,6 +695,7 @@ async def handle_slack_event(event):
         print(f"thread_ts: '{thread_ts}' (type: {type(thread_ts)})")
         print(f"reply_thread_ts: '{reply_thread_ts}' (type: {type(reply_thread_ts)})")
         print(f"channel: '{channel}'")
+        print(f"team_id: '{team_id}'")
         print(f"==================")
 
         if not user_message or not user:
@@ -571,6 +703,7 @@ async def handle_slack_event(event):
                 channel,
                 "Hi! Ask me about your organization metrics or data analysis.",
                 reply_thread_ts,
+                team_id,
             )
             return
 
@@ -578,7 +711,7 @@ async def handle_slack_event(event):
 
         # For reminders, check if we've already responded in the thread
         if is_reminder and thread_ts:
-            thread_messages = await get_thread_history(channel, thread_ts)
+            thread_messages = await get_thread_history(channel, thread_ts, team_id=team_id)
             for msg in thread_messages:
                 if msg.get("user") == bot_user_id and not is_thinking_message(msg.get("text", "")):
                     print(f"Already responded to reminder in thread, skipping: {message_id}")
@@ -590,16 +723,17 @@ async def handle_slack_event(event):
             channel,
             random.choice(THINKING_MESSAGES),
             reply_thread_ts,
+            team_id,
         )
 
         # Process with Agno
         response = await process_with_agno(
-            user_message, user, channel, reply_thread_ts
+            user_message, user, channel, reply_thread_ts, team_id
         )
 
         print(f"Sending response to channel {channel}, reply_thread_ts: {reply_thread_ts}")
         await send_slack_message(
-            channel, f"<@{user}> {response}", reply_thread_ts
+            channel, f"<@{user}> {response}", reply_thread_ts, team_id
         )
 
     except Exception as e:
@@ -608,14 +742,21 @@ async def handle_slack_event(event):
         traceback.print_exc()
 
 async def process_with_agno(
-    message: str, user_id: str, channel: str = None, thread_ts: str = None
+    message: str, user_id: str, channel: str = None, thread_ts: str = None, team_id: str = None
 ) -> str:
     try:
+        # Get Slack bot token for the team if team_id is provided
+        slack_token = None
+        if team_id:
+            tokens = await get_slack_tokens_for_team(team_id)
+            if tokens:
+                slack_token = tokens.get("bot_token")
+        
         # Check if we're in a thread and gather context if it was created by the bot
         thread_context = ""
         if thread_ts and channel:
             print(f"Fetching thread history for thread_ts: {thread_ts}")
-            thread_messages = await get_thread_history(channel, thread_ts)
+            thread_messages = await get_thread_history(channel, thread_ts, team_id=team_id)
             print(f"Thread messages: {thread_messages}")
             
             if thread_messages:
@@ -634,7 +775,15 @@ async def process_with_agno(
                     
                     if clean_text:
                         # Identify if it's a bot message or user message
-                        bot_user_id = os.environ.get("SLACK_BOT_USER_ID", "U08V1K4MXFD")
+                        bot_user_id = None
+                        if team_id:
+                            tokens = await get_slack_tokens_for_team(team_id)
+                            if tokens:
+                                bot_user_id = tokens.get("bot_user_id")
+                        
+                        if not bot_user_id:
+                            bot_user_id = os.environ.get("SLACK_BOT_USER_ID", "U08V1K4MXFD")
+                        
                         is_bot = user_id_msg == bot_user_id or _user_id == bot_user_id or _user_id == "USLACKBOT"
                         sender_type = "Bot" if is_bot else "User"
                         
@@ -686,6 +835,7 @@ async def process_with_agno(
                 markdown=False,
                 tinybird_host=tinybird_host,
                 tinybird_api_key=tinybird_token,
+                slack_token=slack_token,  # Pass the OAuth bot token to the agent
             )
 
             async with mcp_tools:
@@ -737,11 +887,21 @@ async def handle_config_command(parsed_data):
         channel_id = parsed_data.get("channel_id", "")
         trigger_id = parsed_data.get("trigger_id", "")
         response_url = parsed_data.get("response_url", "")
+        team_id = parsed_data.get("team_id", "")
 
         modal = create_config_modal(channel_id)
 
-        # Open modal using Slack API
-        slack_token = os.environ.get("SLACK_TOKEN", "")
+        # Get bot token from stored OAuth tokens
+        slack_token = None
+        if team_id:
+            tokens = await get_slack_tokens_for_team(team_id)
+            if tokens:
+                slack_token = tokens.get("bot_token")
+        
+        # Fallback to environment variable for backward compatibility
+        if not slack_token:
+            slack_token = os.environ.get("SLACK_TOKEN", "")
+        
         if not slack_token:
             await send_followup_response(
                 response_url,
@@ -794,14 +954,24 @@ async def handle_notifications_command(parsed_data):
         channel_id = parsed_data.get("channel_id", "")
         trigger_id = parsed_data.get("trigger_id", "")
         response_url = parsed_data.get("response_url", "")
+        team_id = parsed_data.get("team_id", "")
 
         # Get existing configuration
         channel_config = await get_channel_config(channel_id, user_id)
         print(f"Channel config: {channel_config}")
         modal = create_notifications_modal(channel_id, channel_config)
 
-        # Open modal using Slack API
-        slack_token = os.environ.get("SLACK_TOKEN", "")
+        # Get bot token from stored OAuth tokens
+        slack_token = None
+        if team_id:
+            tokens = await get_slack_tokens_for_team(team_id)
+            if tokens:
+                slack_token = tokens.get("bot_token")
+        
+        # Fallback to environment variable for backward compatibility
+        if not slack_token:
+            slack_token = os.environ.get("SLACK_TOKEN", "")
+        
         if not slack_token:
             await send_followup_response(
                 response_url,
@@ -847,10 +1017,21 @@ async def handle_notifications_command(parsed_data):
                 f"❌ Error processing notifications command: {str(e)}"
             )
 
-async def send_ephemeral_message(channel: str, user: str, text: str):
+async def send_ephemeral_message(channel: str, user: str, text: str, team_id: str = None):
     """Send an ephemeral message to a channel using aiohttp"""
     try:
-        slack_token = os.environ.get("SLACK_TOKEN", "")
+        # Get bot token from stored OAuth tokens
+        if team_id:
+            tokens = await get_slack_tokens_for_team(team_id)
+            if tokens:
+                slack_token = tokens.get("bot_token")
+            else:
+                # Fallback to environment variable for backward compatibility
+                slack_token = os.environ.get("SLACK_TOKEN", "")
+        else:
+            # Fallback to environment variable for backward compatibility
+            slack_token = os.environ.get("SLACK_TOKEN", "")
+        
         if not slack_token:
             print("ERROR: No SLACK_TOKEN found!")
             return False
@@ -881,6 +1062,7 @@ async def handle_modal_submission(payload):
         callback_id = view.get("callback_id")
         channel_id = view.get("private_metadata")
         user_id = payload.get("user", {}).get("id")
+        team_id = payload.get("team", {}).get("id")
         values = view.get("state", {}).get("values", {})
 
         if callback_id == "agno_config_modal":
@@ -918,7 +1100,8 @@ async def handle_modal_submission(payload):
             await send_ephemeral_message(
                 channel_id,
                 user_id,
-                "✅ Birdwatcher configuration updated successfully!"
+                "✅ Birdwatcher configuration updated successfully!",
+                team_id
             )
 
         elif callback_id == "agno_notifications_modal":
@@ -950,7 +1133,8 @@ async def handle_modal_submission(payload):
             await send_ephemeral_message(
                 channel_id,
                 user_id,
-                "✅ Notification preferences updated successfully!"
+                "✅ Notification preferences updated successfully!",
+                team_id
             )
 
         return {"response_action": "clear"}

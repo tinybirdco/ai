@@ -1,0 +1,13 @@
+DESCRIPTION >
+    A datasource to store Slack OAuth tokens with ReplacingMergeTree engine for deduplication based on team_id and updated_at.
+
+SCHEMA >
+    `team_id` String `json:$.team_id`,
+    `bot_token` String `json:$.bot_token`,
+    `bot_user_id` String `json:$.bot_user_id`,
+    `authed_user_id` String `json:$.authed_user_id`,
+    `updated_at` DateTime `json:$.updated_at`
+
+ENGINE "ReplacingMergeTree"
+ENGINE_PARTITION_KEY "toYYYYMM(updated_at)"
+ENGINE_SORTING_KEY "team_id, updated_at" 

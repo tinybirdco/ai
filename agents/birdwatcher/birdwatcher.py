@@ -40,6 +40,7 @@ async def create_agno_agent(
     tinybird_host=None,
     tinybird_api_key=None,
     reasoning=False,
+    slack_token=None,
 ):
     use_storage = os.getenv("PG_URL")
     if use_storage:
@@ -80,15 +81,12 @@ async def create_agno_agent(
 
     tools=[
         mcp_tools,
+        SlackTools(token=slack_token or ""),
     ]
 
     resend_api_key = os.getenv("RESEND_API_KEY")
     if resend_api_key:
         tools.append(ResendTools(from_email="onboarding@resend.dev"))
-
-    slack_token = os.getenv("SLACK_TOKEN")
-    if slack_token:
-        tools.append(SlackTools())
 
     if reasoning:
         tools.append(ReasoningTools(add_instructions=True))
