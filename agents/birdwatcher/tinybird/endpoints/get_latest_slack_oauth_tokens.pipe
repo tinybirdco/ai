@@ -3,6 +3,7 @@ DESCRIPTION >
 
 NODE get_latest_slack_oauth_tokens_node
 SQL >
+    %
     SELECT
         team_id,
         bot_token,
