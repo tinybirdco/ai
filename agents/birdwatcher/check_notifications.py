@@ -42,7 +42,7 @@ async def run_notification_check(config):
         return
         
     # Set environment variables for the script
-    os.environ['TINYBIRD_API_KEY'] = tinybird_token
+    os.environ['TINYBIRD_TOKEN'] = tinybird_token
     os.environ['TINYBIRD_HOST'] = tinybird_host
     
     for notification_type in notification_types:
