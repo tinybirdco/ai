@@ -81,10 +81,13 @@ async def create_agno_agent(
 
     tools=[
         mcp_tools,
-        ResendTools(from_email="onboarding@resend.dev"),
         SlackTools(token=slack_token or ""),
     ]
-    
+
+    resend_api_key = os.getenv("RESEND_API_KEY")
+    if resend_api_key:
+        tools.append(ResendTools(from_email="onboarding@resend.dev"))
+
     if reasoning:
         tools.append(ReasoningTools(add_instructions=True))
         tools.append(ThinkingTools(add_instructions=True))
@@ -137,7 +140,7 @@ async def create_agno_agent(
         read_chat_history=False,
         read_tool_call_history=False,
         enable_session_summaries=True,
-        description=dedent(system_prompt),
+        description=dedent(system_prompt).format(current_date=datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
         instructions=instructions,
         # disabled
         search_previous_sessions_history=False,

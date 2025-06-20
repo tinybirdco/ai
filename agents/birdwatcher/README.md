@@ -1,5 +1,7 @@
 Birdwatcher is an open-source agent that provides data analysis capabilities for your data in Tinybird
 
+<a href="https://slack.com/oauth/v2/authorize?client_id=1689466861365.9006719895489&scope=app_mentions:read,channels:history,chat:write,im:history,im:read,im:write,groups:history,commands&user_scope="><img alt="Add to Slack" height="40" width="139" src="https://platform.slack-edge.com/img/add_to_slack.png" srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x" /></a>
+
 It connects to the [Tinybird MCP server](https://www.tinybird.co/docs/forward/work-with-data/mcp) using your Tinybird token and enables analytics via natural language
 
 ## Quickstart
