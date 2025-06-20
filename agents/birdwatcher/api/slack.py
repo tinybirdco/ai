@@ -727,14 +727,26 @@ async def handle_slack_event(event):
         )
 
         # Process with Agno
-        response = await process_with_agno(
-            user_message, user, channel, reply_thread_ts, team_id
-        )
+        try:
+            response = await process_with_agno(
+                user_message, user, channel, reply_thread_ts, team_id
+            )
 
-        print(f"Sending response to channel {channel}, reply_thread_ts: {reply_thread_ts}")
-        await send_slack_message(
-            channel, f"<@{user}> {response}", reply_thread_ts, team_id
-        )
+            print(f"Sending response to channel {channel}, reply_thread_ts: {reply_thread_ts}")
+            await send_slack_message(
+                channel, f"<@{user}> {response}", reply_thread_ts, team_id
+            )
+        except Exception as e:
+            print(f"Error in process_with_agno or sending message: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Send error message to Slack as fallback
+            error_message = f"<@{user}> ❌ Sorry, I encountered an unexpected error while processing your request. Please try again or contact support if the issue persists."
+            try:
+                await send_slack_message(channel, error_message, reply_thread_ts, team_id)
+            except Exception as send_error:
+                print(f"Failed to send error message to Slack: {send_error}")
 
     except Exception as e:
         print(f"Error handling Slack event: {e}")
@@ -857,11 +869,45 @@ async def process_with_agno(
                     # Avoid sending the entire RunResponse object
                     return "I've completed the analysis, but encountered an issue formatting the response."
 
-        except Exception as e:
-            print(f"Error in agent processing: {e}")
+        except (Exception, BaseExceptionGroup) as e:
+            print(f"Error in process_with_agno: {e}")
             import traceback
             traceback.print_exc()
-            return f"I encountered an error while analyzing your request: {str(e)}"
+            
+            # Handle BaseExceptionGroup specifically
+            if isinstance(e, BaseExceptionGroup):
+                # Extract the first meaningful exception from the group
+                exceptions = list(e.exceptions)
+                if exceptions:
+                    # Look for HTTP errors first
+                    for exc in exceptions:
+                        error_str = str(exc).lower()
+                        if "504" in error_str or "gateway timeout" in error_str:
+                            return "❌ **Gateway Timeout Error**: The request to Tinybird timed out. This usually means the query is taking too long to execute. Please try a simpler query or contact support if this persists."
+                        elif "502" in error_str or "503" in error_str or "bad gateway" in error_str or "service unavailable" in error_str:
+                            return "❌ **Service Unavailable**: Tinybird services are currently experiencing issues. Please try again in a few minutes."
+                        elif "401" in error_str or "403" in error_str or "unauthorized" in error_str or "forbidden" in error_str:
+                            return "❌ **Authentication Error**: Your Tinybird token appears to be invalid or expired. Please reconfigure using `/birdwatcher-config`."
+                        elif "timeout" in error_str:
+                            return "❌ **Request Timeout**: The request took too long to complete. Please try a simpler query or try again later."
+                    
+                    # If no specific HTTP error found, return the first exception
+                    return f"Sorry, I encountered an error processing your request: {str(exceptions[0])}"
+                else:
+                    return "Sorry, I encountered an unexpected error while processing your request."
+            
+            # Handle regular exceptions
+            error_str = str(e).lower()
+            if "504" in error_str or "gateway timeout" in error_str:
+                return "❌ **Gateway Timeout Error**: The request to Tinybird timed out. This usually means the query is taking too long to execute. Please try a simpler query or contact support if this persists."
+            elif "502" in error_str or "503" in error_str or "bad gateway" in error_str or "service unavailable" in error_str:
+                return "❌ **Service Unavailable**: Tinybird services are currently experiencing issues. Please try again in a few minutes."
+            elif "401" in error_str or "403" in error_str or "unauthorized" in error_str or "forbidden" in error_str:
+                return "❌ **Authentication Error**: Your Tinybird token appears to be invalid or expired. Please reconfigure using `/birdwatcher-config`."
+            elif "timeout" in error_str:
+                return "❌ **Request Timeout**: The request took too long to complete. Please try a simpler query or try again later."
+            
+            return f"Sorry, I encountered an error processing your request: {str(e)}"
         finally:
             try:
                 if mcp_tools and hasattr(mcp_tools, "aclose"):
@@ -1100,7 +1146,7 @@ async def handle_modal_submission(payload):
             await send_ephemeral_message(
                 channel_id,
                 user_id,
-                "✅ Birdwatcher configuration updated successfully!",
+                "✅ Birdwatcher configuration updated successfully! \n\nYou can now ask me questions about your data or Tinybird service datasources. \n\nExample: top 5 pipes by requests in the last 24 hours.",
                 team_id
             )
 
