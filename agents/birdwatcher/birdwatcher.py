@@ -80,9 +80,16 @@ async def create_agno_agent(
 
     tools=[
         mcp_tools,
-        ResendTools(from_email="onboarding@resend.dev"),
-        SlackTools(),
     ]
+
+    resend_api_key = os.getenv("RESEND_API_KEY")
+    if resend_api_key:
+        tools.append(ResendTools(from_email="onboarding@resend.dev"))
+
+    slack_token = os.getenv("SLACK_TOKEN")
+    if slack_token:
+        tools.append(SlackTools())
+
     if reasoning:
         tools.append(ReasoningTools(add_instructions=True))
         tools.append(ThinkingTools(add_instructions=True))
