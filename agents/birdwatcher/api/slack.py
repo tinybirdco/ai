@@ -604,18 +604,18 @@ async def slack_oauth_callback(request):
                     
                     if success:
                         return web.Response(
-                            text="<h1>App installed successfully!</h1><p>Your Slack workspace is now connected to Birdwatcher. You can close this window.</p>", 
-                            content_type="text/html"
+                            text="App installed successfully! Your Slack workspace is now connected to Birdwatcher. You can close this window.", 
+                            content_type="text/plain"
                         )
                     else:
                         return web.Response(
-                            text="<h1>App installed but failed to save configuration</h1><p>Please contact support.</p>", 
-                            content_type="text/html"
+                            text="App installed but failed to save configuration. Please contact support.", 
+                            content_type="text/plain"
                         )
                 else:
                     return web.Response(
-                        text="<h1>App installed but missing required tokens</h1><p>Please contact support.</p>", 
-                        content_type="text/html"
+                        text="App installed but missing required tokens. Please contact support.", 
+                        content_type="text/plain"
                     )
             else:
                 err = slack_response.get("error", "Unknown error")
