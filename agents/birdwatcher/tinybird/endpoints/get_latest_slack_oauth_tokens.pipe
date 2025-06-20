@@ -9,7 +9,7 @@ SQL >
         bot_user_id,
         authed_user_id,
         updated_at
-    FROM slack_oauth_tokens
+    FROM slack_oauth_tokens FINAL
     WHERE team_id = {{ String(team_id) }}
     ORDER BY updated_at DESC
     LIMIT 1
