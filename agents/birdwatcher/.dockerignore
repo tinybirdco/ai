@@ -1,0 +1,7 @@
+# flyctl launch added from .gitignore
+**/.vercel
+
+# flyctl launch added from tinybird/.gitignore
+tinybird/**/.tinyb
+tinybird/**/.terraform
+fly.toml

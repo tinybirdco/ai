@@ -1,0 +1,18 @@
+DESCRIPTION >
+    Get the latest Slack OAuth tokens for a specific team_id.
+
+NODE get_latest_slack_oauth_tokens_node
+SQL >
+    %
+    SELECT
+        team_id,
+        bot_token,
+        bot_user_id,
+        authed_user_id,
+        updated_at
+    FROM slack_oauth_tokens FINAL
+    WHERE team_id = {{ String(team_id) }}
+    ORDER BY updated_at DESC
+    LIMIT 1
+
+TYPE endpoint
