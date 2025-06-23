@@ -707,6 +707,25 @@ async def handle_slack_event(event):
             )
             return
 
+        # Check if this is a DM or a channel message
+        is_dm = channel.startswith('D')
+        
+        if not is_dm:
+            # For channel messages, check if the message starts with @Birdwatcher
+            # Remove the @Birdwatcher mention and clean up the message
+            bot_mention_pattern = rf'<@{bot_user_id}>'
+            if user_message.startswith(f'<@{bot_user_id}>'):
+                # Remove the bot mention from the beginning
+                user_message = re.sub(f'^{bot_mention_pattern}\\s*', '', user_message).strip()
+                print(f"Bot mentioned in channel, processing message: {user_message}")
+            else:
+                # No bot mention, ignore the message
+                print(f"No bot mention in channel message, ignoring: {user_message}")
+                return
+        else:
+            # For DMs, process all messages
+            print(f"DM message, processing: {user_message}")
+
         print(f"Processing message from {user}: {user_message}")
 
         # For reminders, check if we've already responded in the thread

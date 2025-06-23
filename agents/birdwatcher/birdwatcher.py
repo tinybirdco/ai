@@ -53,11 +53,11 @@ async def create_agno_agent(
 
     if not tinybird_host:
         server_url = (
-            f"https://mcp.tinybird.co?token={tinybird_api_key}"
+            f"https://cloud.tinybird.co/mcp?token={tinybird_api_key}"
         )
     else:
         server_url = (
-            f"https://mcp.tinybird.co?token={tinybird_api_key}&host={tinybird_host}"
+            f"https://cloud.tinybird.co/mcp?token={tinybird_api_key}&host={tinybird_host}"
         )
 
     mcp_tools = MCPTools(
