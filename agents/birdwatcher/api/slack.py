@@ -699,12 +699,7 @@ async def handle_slack_event(event):
         print(f"==================")
 
         if not user_message or not user:
-            await send_slack_message(
-                channel,
-                "Hi! Ask me about your organization metrics or data analysis.",
-                reply_thread_ts,
-                team_id,
-            )
+            print(f"No user message or user")
             return
 
         # Check if this is a DM or a channel message
