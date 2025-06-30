@@ -317,6 +317,26 @@ class TinybirdConfig:
             logger.error(f"Error getting Slack OAuth tokens: {str(e)}")
             return None
 
+    async def save_mission(self, channel_id: str, config: Dict) -> bool:
+        """
+        Save a mission for a specific channel to Tinybird events API.
+        Args:
+            channel_id (str): Slack channel ID
+            config (Dict): Mission configuration to save (expects 'mission' and 'updated_by')
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            event_data = {
+                "user_id": config.get("updated_by", "unknown"),
+                "channel_id": channel_id,
+                "mission": config.get("mission", ""),
+                "updated_at": datetime.now().isoformat()
+            }
+            return await self.save_event(event_data, "missions")
+        except Exception as e:
+            logger.error(f"Error saving mission: {str(e)}")
+            return False
 
 def create_tinybird_config(host: str = "https://api.europe-west2.gcp.tinybird.co", token: str = None) -> TinybirdConfig:
     """

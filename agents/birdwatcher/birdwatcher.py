@@ -92,7 +92,7 @@ async def create_agno_agent(
         tools.append(ReasoningTools(add_instructions=True))
         tools.append(ThinkingTools(add_instructions=True))
 
-    model = os.getenv("MODEL", "gemini-2.0-flash")
+    model = os.getenv("MODEL", "gemini-2.5-flash")
     if "gemini" in model:
         model = Gemini(
             id=model,
@@ -148,6 +148,7 @@ async def create_agno_agent(
         show_tool_calls=False,
         debug_mode=True,
         exponential_backoff=True,
+        retries=2
     )
 
     return agent, mcp_tools, credentials_file

@@ -1,0 +1,14 @@
+
+DESCRIPTION >
+    A datasource to store missions for a given channel
+
+SCHEMA >
+    `user_id` String `json:$.user_id`,
+    `channel_id` String `json:$.channel_id`,
+    `mission` String `json:$.mission`,
+    `updated_at` DateTime `json:$.updated_at`
+
+ENGINE "ReplacingMergeTree"
+ENGINE_PARTITION_KEY "toYYYYMM(updated_at)"
+ENGINE_SORTING_KEY "user_id, channel_id, updated_at"
+        

@@ -61,6 +61,13 @@ async def save_notification_config(channel_id, config):
             return False
     return await tinybird_config.save_notification_config(channel_id, config)
 
+async def save_mission_config(channel_id, config):
+    """Save mission config for a specific channel to Tinybird"""
+    if not tinybird_config:
+        if not await init_tinybird_config():
+            return False
+    return await tinybird_config.save_mission(channel_id, config)
+
 def create_config_modal(channel_id):
     """Create the configuration modal using Slack Blocks"""
     modal = {
@@ -234,6 +241,36 @@ def create_notifications_modal(channel_id, existing_config=None):
                     "text": "Notification Preferences"
                 },
                 "element": checkbox_element
+            }
+        ]
+    }
+    return modal
+
+def create_mission_modal(channel_id, existing_config=None):
+    """Create the mission modal using Slack Blocks"""
+    mission_text = existing_config.get("mission", "") if existing_config else ""
+    modal = {
+        "type": "modal",
+        "callback_id": "agno_mission_modal",
+        "title": {"type": "plain_text", "text": "Set Mission"},
+        "submit": {"type": "plain_text", "text": "Save"},
+        "close": {"type": "plain_text", "text": "Cancel"},
+        "private_metadata": channel_id,
+        "blocks": [
+            {"type": "section", "text": {"type": "mrkdwn", "text": f"*Set a custom Mission for:* <#{channel_id}>"}},
+            {"type": "divider"},
+            {
+                "type": "input",
+                "block_id": "mission_block",
+                "label": {"type": "plain_text", "text": "Mission Instructions"},
+                "element": {
+                    "type": "plain_text_input",
+                    "action_id": "mission_textarea",
+                    "multiline": True,
+                    "placeholder": {"type": "plain_text", "text": "Describe the mission for this channel..."},
+                    **({"initial_value": mission_text} if mission_text else {})
+                },
+                "optional": True
             }
         ]
     }
@@ -514,6 +551,9 @@ async def handle_slack(request):
                         "response_type": "ephemeral",
                         "text": "Opening notifications modal..."
                     })
+                elif command == "/birdwatcher-mission":
+                    await handle_mission_command(parsed_data)
+                    return web.json_response({"response_type": "ephemeral", "text": "Opening mission modal..."})
 
             except Exception as e:
                 print(f"Error parsing form data: {e}")
@@ -789,7 +829,7 @@ async def process_with_agno(
                 print("Extracting full thread context...")
                 
                 # Build full thread context with all messages
-                thread_context = "\n\nTHREAD CONTEXT (Full conversation history):\n"
+                thread_context = "\n\n<thread_context>\n"
                 for i, msg in enumerate(thread_messages):
                     user_id_msg = msg.get("user", "unknown")
                     _user_id = msg.get("user_id", "unknown")
@@ -816,7 +856,8 @@ async def process_with_agno(
                         # Skip thinking messages from thread context
                         if not is_thinking_message(clean_text):
                             thread_context += f"Message {i+1} ({sender_type}): {clean_text}\n"
-                
+                if thread_context.strip():
+                    thread_context = "\n</thread_context>\n"
                 print(f"Added full thread context: {thread_context}")
 
         # Get channel configuration
@@ -850,14 +891,21 @@ async def process_with_agno(
                 session_id = f"slack_{user_id}"
 
             if thread_context:
-                instructions = [f"You MUST reply in the same Slack thread as the user's message: Thread ts: {thread_ts}"] + [dedent(thread_context)]
+                instructions = [f"<slack_thread_instructions>You MUST reply in the same Slack thread as the user's message: Thread ts: {thread_ts}</slack_thread_instructions>\n<thread_context>{dedent(thread_context)}</thread_context>"]
             else:
-                instructions = [f"You MUST reply in the same Slack thread as the user's message: Thread ts: {thread_ts}"]
+                instructions = [f"<slack_thread_instructions>You MUST reply in the same Slack thread as the user's message: Thread ts: {thread_ts}</slack_thread_instructions>\n<message>{message}</message>"]
+
+            mission_text = channel_config.get("mission", "") if channel_config else ""
+            if mission_text.strip():
+                instructions.append(mission_text)
+                mission = None
+            else:
+                mission = "explore"
 
             agent, mcp_tools, _ = await create_agno_agent(
                 system_prompt=SYSTEM_PROMPT,
                 instructions=instructions,
-                mission="explore",
+                mission=mission,
                 markdown=False,
                 tinybird_host=tinybird_host,
                 tinybird_api_key=tinybird_token,
@@ -1124,6 +1172,7 @@ async def handle_modal_submission(payload):
         user_id = payload.get("user", {}).get("id")
         team_id = payload.get("team", {}).get("id")
         values = view.get("state", {}).get("values", {})
+        print(f"callback_id: {callback_id}")
 
         if callback_id == "agno_config_modal":
             # Handle configuration modal submission
@@ -1197,6 +1246,15 @@ async def handle_modal_submission(payload):
                 team_id
             )
 
+        elif callback_id == "agno_mission_modal":
+            print("Saving mission")
+            mission_text = values.get("mission_block", {}).get("mission_textarea", {}).get("value", "")
+            config = {"mission": mission_text, "updated_by": user_id, "channel_id": channel_id, "updated_at": datetime.now().isoformat()}
+            success = await save_mission_config(channel_id, config)
+            if not success:
+                return {"response_action": "errors", "errors": {"mission_block": "Failed to save mission"}}
+            await send_ephemeral_message(channel_id, user_id, "✅ Mission updated successfully!", team_id)
+
         return {"response_action": "clear"}
 
     except Exception as e:
@@ -1207,6 +1265,50 @@ async def handle_modal_submission(payload):
                 "notification_options_block": f"Error saving preferences: {str(e)}"
             }
         }
+
+async def handle_mission_command(parsed_data):
+    """Handle the /birdwatcher-mission command"""
+    try:
+        user_id = parsed_data.get("user_id", "")
+        channel_id = parsed_data.get("channel_id", "")
+        trigger_id = parsed_data.get("trigger_id", "")
+        response_url = parsed_data.get("response_url", "")
+        team_id = parsed_data.get("team_id", "")
+
+        # Get existing config (fetches mission if present)
+        channel_config = await get_channel_config(channel_id, user_id)
+        modal = create_mission_modal(channel_id, channel_config)
+
+        # Get bot token from stored OAuth tokens
+        slack_token = None
+        if team_id:
+            tokens = await get_slack_tokens_for_team(team_id)
+            if tokens:
+                slack_token = tokens.get("bot_token")
+        if not slack_token:
+            slack_token = os.environ.get("SLACK_TOKEN", "")
+        if not slack_token:
+            await send_followup_response(response_url, "❌ Error: Bot token not configured")
+            return
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    "https://slack.com/api/views.open",
+                    json={"trigger_id": trigger_id, "view": modal},
+                    headers={"Authorization": f"Bearer {slack_token}", "Content-Type": "application/json"}
+                ) as response:
+                    response_data = await response.json()
+                    if not response_data.get("ok"):
+                        error_msg = response_data.get("error", "Unknown error")
+                        await send_followup_response(response_url, f"❌ Error opening mission modal: {error_msg}")
+                        return
+        except Exception as e:
+            print(f"Error opening mission modal: {e}")
+            await send_followup_response(response_url, f"❌ Error opening mission modal: {str(e)}")
+    except Exception as e:
+        print(f"Error handling mission command: {e}")
+        if "response_url" in locals():
+            await send_followup_response(response_url, f"❌ Error processing mission command: {str(e)}")
 
 # Add the routes to the app
 app.add_routes(routes)

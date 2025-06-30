@@ -11,11 +11,25 @@ SQL >
         token,
         host,
         updated_at,
-        notification_types
+        notification_types,
+        mission
     FROM user_tokens FINAL
     LEFT JOIN (
         SELECT notification_types, channel_id
         FROM notification_configs FINAL
+        WHERE 1
+            {% if defined(user_id) %}
+            AND user_id = {{String(user_id, '')}}
+            {% end %}
+            {% if defined(channel_id) %}
+            AND channel_id = {{String(channel_id, '')}}
+            {% end %}
+        ORDER BY updated_at DESC
+        LIMIT 1 by channel_id)
+    USING channel_id
+    LEFT JOIN (
+        SELECT mission, channel_id
+        FROM missions FINAL
         WHERE 1
             {% if defined(user_id) %}
             AND user_id = {{String(user_id, '')}}
