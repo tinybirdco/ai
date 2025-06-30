@@ -746,15 +746,15 @@ async def handle_slack_event(event):
         is_dm = channel.startswith('D')
         
         if not is_dm:
-            # For channel messages, check if the message starts with @Birdwatcher
-            # Remove the @Birdwatcher mention and clean up the message
+            # For channel messages, process if it's a reminder or if the message starts with @Birdwatcher
             bot_mention_pattern = rf'<@{bot_user_id}>'
-            if user_message.startswith(f'<@{bot_user_id}>'):
-                # Remove the bot mention from the beginning
-                user_message = re.sub(f'^{bot_mention_pattern}\\s*', '', user_message).strip()
-                print(f"Bot mentioned in channel, processing message: {user_message}")
+            if is_reminder or user_message.startswith(f'<@{bot_user_id}>'):
+                if user_message.startswith(f'<@{bot_user_id}>'):
+                    # Remove the bot mention from the beginning
+                    user_message = re.sub(f'^{bot_mention_pattern}\\s*', '', user_message).strip()
+                print(f"Processing channel message (reminder or mention): {user_message}")
             else:
-                # No bot mention, ignore the message
+                # No bot mention and not a reminder, ignore the message
                 print(f"No bot mention in channel message, ignoring: {user_message}")
                 return
         else:
@@ -829,7 +829,7 @@ async def process_with_agno(
                 print("Extracting full thread context...")
                 
                 # Build full thread context with all messages
-                thread_context = "\n\n<thread_context>\n"
+                thread_context = ""
                 for i, msg in enumerate(thread_messages):
                     user_id_msg = msg.get("user", "unknown")
                     _user_id = msg.get("user_id", "unknown")
@@ -856,8 +856,6 @@ async def process_with_agno(
                         # Skip thinking messages from thread context
                         if not is_thinking_message(clean_text):
                             thread_context += f"Message {i+1} ({sender_type}): {clean_text}\n"
-                if thread_context.strip():
-                    thread_context = "\n</thread_context>\n"
                 print(f"Added full thread context: {thread_context}")
 
         # Get channel configuration
