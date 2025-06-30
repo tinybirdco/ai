@@ -45,8 +45,15 @@ using workspace_id
 where date = toDate(now())
 group by all
 
+SELECT toDate(timestamp) date, sum(bytes) sum_bytes, sum(rows) sum_rows, name
+FROM organization.datasources_storage
+left join organization.workspaces using workspace_id
+where toDate(timestamp) = toDate(now())
+group by all
+
 Take these queries as a reference, you may need to adjust them to only group by date or event_type to have overall metrics.
 Use event_date between toDate(now()) - interval 1 day and toDate(now()) - interval 2 days to get the previous period metrics. Use the proper granularity (day, week, month, year) to group the metrics.
+Use organization.datasources_storage to report storage by workspace in the same time range
 
 Step 2: Generate a report for each workspace:
     - Check distinct event types in datasource_ops_stats to group the metrics by event_type and make conclusions
@@ -55,15 +62,17 @@ Step 2: Generate a report for each workspace:
     - Report increases on error_count, read_bytes and rows, more cpu time, more duration
     - Report decreases on view_count, duration
     - Report pipes metrics by pipe_name=query_api and the rest of the pipes
+    - Report overall growth in storage
 
 Step 3: Format the response as described next:
 - Overall summary:
+    - Overall storage growth
     - Total number of requests (compared to previous period)
     - Total number of requests by pipe_name=query_api and the rest of the pipes (compared to previous period)
     - Total number of errors in pipes and datasources (compared to previous period)
     - Total number of rows and bytes written in datasources (compared to previous period)
     - bytes ingested by event_type in datasources (compared to previous period)
-    - interesting insights (if any)
+    - interesting insights (if any). They should be significative, for instance an increase from 3 to 6 quarantine rows, even when it's a 50% it's not significative compared to the overall rows ingested
     - report any workspace with a significant increase in errors, rows written, bytes written, bytes ingested by event_type
 
 Report quantities in thousands, millions, etc. Sizes in MB, GB, etc. Time in seconds, minutes, hours, days, etc. Growth in percentage.
@@ -75,6 +84,7 @@ Example:
 Here's a summary of the daily activity compared to the previous day (June 29th, 2025):
 Overall Summary:
 
+-   *Storage*: Increased by 9.4% (6GB vs 7GB).
 -   *Total number of requests*: Decreased by 9.4% (7,247 vs 7,997).
 -   *Total number of errors in pipes*: Increased significantly by 650% (75 vs 10).
 -   *Total number of errors in datasources*: Decreased by 31.8% (94 vs 138).
