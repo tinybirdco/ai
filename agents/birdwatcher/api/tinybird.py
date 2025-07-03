@@ -146,6 +146,42 @@ class TinybirdConfig:
         except Exception as e:
             logger.error(f"Error getting channel configuration: {str(e)}")
             return None
+        
+    async def get_missions(self, channel_id: str) -> Optional[Dict]:
+        """
+        Get the latest missions for a specific channel from Tinybird.
+        
+        Args:
+            channel_id (str): Slack channel ID
+            
+        Returns:
+            Optional[Dict]: Channel missions or None if not found
+        """
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.host}/v0/pipes/get_latest_missions.json"
+                params = {
+                    "channel_id": channel_id,
+                }
+                headers = {
+                    "Authorization": f"Bearer {self.token}"
+                }
+                
+                async with session.get(url, params=params, headers=headers) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        if result.get("data") and len(result["data"]) > 0:
+                            return result["data"]
+                        logger.info(f"No missions found for channel {channel_id}")
+                        return None
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"Failed to get missions. Status: {response.status}, Error: {error_text}")
+                        return None
+                        
+        except Exception as e:
+            logger.error(f"Error getting channel missions: {str(e)}")
+            return None
 
     async def save_event(self, event_data: Dict, table_name: str) -> bool:
         """
@@ -322,7 +358,7 @@ class TinybirdConfig:
         Save a mission for a specific channel to Tinybird events API.
         Args:
             channel_id (str): Slack channel ID
-            config (Dict): Mission configuration to save (expects 'mission' and 'updated_by')
+            config (Dict): Mission configuration to save (expects 'mission', 'name', and 'updated_by')
         Returns:
             bool: True if successful, False otherwise
         """
@@ -331,7 +367,9 @@ class TinybirdConfig:
                 "user_id": config.get("updated_by", "unknown"),
                 "channel_id": channel_id,
                 "mission": config.get("mission", ""),
-                "updated_at": datetime.now().isoformat()
+                "name": config.get("name", ""),
+                "updated_at": datetime.now().isoformat(),
+                "deleted": config.get("deleted", 0)
             }
             return await self.save_event(event_data, "missions")
         except Exception as e:

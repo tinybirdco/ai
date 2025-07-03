@@ -246,9 +246,95 @@ def create_notifications_modal(channel_id, existing_config=None):
     }
     return modal
 
-def create_mission_modal(channel_id, existing_config=None):
-    """Create the mission modal using Slack Blocks"""
-    mission_text = existing_config.get("mission", "") if existing_config else ""
+def create_mission_modal(channel_id, missions=None, selected_mission=None):
+    """Create the mission modal using Slack Blocks, with a selector for existing missions and a delete button."""
+    if missions is None:
+        missions = []
+    # Build options for the dropdown
+    options = []
+    selected_option = None
+    for m in missions:
+        name = m.get("name") or "(default)"
+        option = {
+            "text": {"type": "plain_text", "text": name},
+            "value": name
+        }
+        options.append(option)
+        if selected_mission and (m.get("name") or "(default)") == (selected_mission.get("name") or "(default)"):
+            selected_option = option
+    # Add 'Create new mission' option
+    create_new_option = {"text": {"type": "plain_text", "text": "➕ Create new mission"}, "value": "__create_new__"}
+    options.append(create_new_option)
+    if selected_mission is None:
+        selected_option = create_new_option
+    # Determine values for fields
+    if selected_mission:
+        mission_name = selected_mission.get("name") or ""
+        mission_text = selected_mission.get("mission", "")
+    else:
+        mission_text = ""
+        mission_name = ""
+    # Modal blocks
+    blocks = [
+        {"type": "section", "text": {"type": "mrkdwn", "text": f"*Set a custom Mission for:* <#{channel_id}>"}},
+        {"type": "divider"},
+        {
+            "type": "section",
+            "block_id": "mission_selector_block",
+            "text": {"type": "mrkdwn", "text": "*Select Mission*"},
+            "accessory": {
+                "type": "static_select",
+                "action_id": "mission_selector",
+                "options": options,
+                **({"initial_option": selected_option} if selected_option else {})
+            }
+        },
+        {
+            "type": "input",
+            "block_id": "mission_name_block",
+            "label": {"type": "plain_text", "text": "Mission Name"},
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "mission_name_input",
+                "placeholder": {"type": "plain_text", "text": "Enter a name for this mission. Leave empty to use it by default."},
+                "initial_value": mission_name
+            },
+            "optional": True
+        },
+        {
+            "type": "input",
+            "block_id": "mission_block",
+            "label": {"type": "plain_text", "text": "Mission Instructions"},
+            "element": {
+                "type": "plain_text_input",
+                "action_id": "mission_textarea",
+                "multiline": True,
+                "placeholder": {"type": "plain_text", "text": "Describe the mission for this channel..."},
+                "initial_value": mission_text
+            },
+            "optional": True
+        }
+    ]
+    # Add delete button if not 'create new'
+    if selected_option and selected_option["value"] != "__create_new__":
+        blocks.append({
+            "type": "actions",
+            "block_id": "mission_actions_block",
+            "elements": [
+                {
+                    "type": "button",
+                    "action_id": "delete_mission",
+                    "text": {"type": "plain_text", "text": "Delete Mission"},
+                    "style": "danger",
+                    "confirm": {
+                        "title": {"type": "plain_text", "text": "Are you sure?"},
+                        "text": {"type": "plain_text", "text": "This will delete the selected mission."},
+                        "confirm": {"type": "plain_text", "text": "Delete"},
+                        "deny": {"type": "plain_text", "text": "Cancel"}
+                    }
+                }
+            ]
+        })
     modal = {
         "type": "modal",
         "callback_id": "agno_mission_modal",
@@ -256,23 +342,7 @@ def create_mission_modal(channel_id, existing_config=None):
         "submit": {"type": "plain_text", "text": "Save"},
         "close": {"type": "plain_text", "text": "Cancel"},
         "private_metadata": channel_id,
-        "blocks": [
-            {"type": "section", "text": {"type": "mrkdwn", "text": f"*Set a custom Mission for:* <#{channel_id}>"}},
-            {"type": "divider"},
-            {
-                "type": "input",
-                "block_id": "mission_block",
-                "label": {"type": "plain_text", "text": "Mission Instructions"},
-                "element": {
-                    "type": "plain_text_input",
-                    "action_id": "mission_textarea",
-                    "multiline": True,
-                    "placeholder": {"type": "plain_text", "text": "Describe the mission for this channel..."},
-                    **({"initial_value": mission_text} if mission_text else {})
-                },
-                "optional": True
-            }
-        ]
+        "blocks": blocks
     }
     return modal
 
@@ -532,7 +602,92 @@ async def handle_slack(request):
                                         "tinybird_token_block": f"Error processing submission: {str(e)}"
                                     }
                                 })
-
+                        elif payload.get("type") == "block_actions":
+                            print(f"[block_actions] Received payload: {json.dumps(payload, indent=2)}")
+                            actions = payload.get("actions", [])
+                            if actions and actions[0].get("action_id") == "mission_selector":
+                                selected_value = actions[0]["selected_option"]["value"]
+                                print(f"[block_actions] Selected value: {selected_value}")
+                                view = payload.get("view", {})
+                                channel_id = view.get("private_metadata")
+                                user_id = payload.get("user", {}).get("id")
+                                team_id = payload.get("team", {}).get("id")
+                                # Fetch all missions
+                                if not tinybird_config:
+                                    await init_tinybird_config()
+                                missions_result = await tinybird_config.get_missions(channel_id)
+                                missions = []
+                                if missions_result and isinstance(missions_result, list):
+                                    missions = missions_result
+                                print(f"[block_actions] Missions fetched: {missions}")
+                                # Extract current input values from modal state
+                                state_values = view.get("state", {}).get("values", {})
+                                current_name = state_values.get("mission_name_block", {}).get("mission_name_input", {}).get("value", "")
+                                current_text = state_values.get("mission_block", {}).get("mission_textarea", {}).get("value", "")
+                                print(f"[block_actions] Current input values: name={current_name}, text={current_text}")
+                                # Find selected mission (or None for create new)
+                                selected_mission = None
+                                if selected_value != "__create_new__":
+                                    for m in missions:
+                                        if (m.get("name") or "(default)") == selected_value:
+                                            selected_mission = m
+                                            break
+                                # If switching to create new, preserve current input values
+                                if selected_value == "__create_new__":
+                                    new_modal = create_mission_modal(channel_id, missions, {"name": current_name, "mission": current_text})
+                                else:
+                                    new_modal = create_mission_modal(channel_id, missions, selected_mission)
+                                print(f"[block_actions] New modal to send: {json.dumps(new_modal, indent=2)}")
+                                # Call views.update
+                                slack_token = None
+                                if team_id:
+                                    tokens = await get_slack_tokens_for_team(team_id)
+                                    if tokens:
+                                        slack_token = tokens.get("bot_token")
+                                if not slack_token:
+                                    slack_token = os.environ.get("SLACK_TOKEN", "")
+                                view_id = view.get("id")
+                                print(f"[block_actions] view_id: {view_id}, slack_token exists: {bool(slack_token)}")
+                                if slack_token and view_id:
+                                    async with aiohttp.ClientSession() as session:
+                                        async with session.post(
+                                            "https://slack.com/api/views.update",
+                                            json={"view_id": view_id, "view": new_modal},
+                                            headers={
+                                                "Authorization": f"Bearer {slack_token}",
+                                                "Content-Type": "application/json"
+                                            }
+                                        ) as resp:
+                                            resp_data = await resp.json()
+                                            print(f"[block_actions] Slack views.update response: {json.dumps(resp_data, indent=2)}")
+                                            if not resp_data.get("ok"):
+                                                print(f"[block_actions] Error from Slack API: {resp_data.get('error')}")
+                                else:
+                                    print(f"[block_actions] Missing slack_token or view_id, cannot update modal.")
+                                return web.json_response({})
+                            elif actions and actions[0].get("action_id") == "delete_mission":
+                                view = payload.get("view", {})
+                                channel_id = view.get("private_metadata")
+                                user_id = payload.get("user", {}).get("id")
+                                team_id = payload.get("team", {}).get("id")
+                                # Get selected mission name from modal state
+                                state_values = view.get("state", {}).get("values", {})
+                                mission_name = state_values.get("mission_name_block", {}).get("mission_name_input", {}).get("value")
+                                # Fallback to initial_value if needed
+                                if mission_name is None:
+                                    for block in view.get("blocks", []):
+                                        if block.get("block_id") == "mission_name_block":
+                                            element = block.get("element", {})
+                                            mission_name = element.get("initial_value", "")
+                                print(f"[delete_mission] Deleting mission: {mission_name}")
+                                # Save mission with deleted=1
+                                config = {"name": mission_name, "channel_id": channel_id, "deleted": 1, "updated_by": user_id, "updated_at": datetime.now().isoformat()}
+                                success = await save_mission_config(channel_id, config)
+                                if success:
+                                    await send_ephemeral_message(channel_id, user_id, f"🗑️ Mission '{mission_name or '(default)'}' deleted.", team_id)
+                                else:
+                                    await send_ephemeral_message(channel_id, user_id, f"❌ Failed to delete mission '{mission_name or '(default)'}'.", team_id)
+                                return web.json_response({"response_action": "clear"})
                     except json.JSONDecodeError as e:
                         print(f"Error parsing payload JSON: {e}")
                         return web.json_response({"status": "error", "message": str(e)})
@@ -552,7 +707,32 @@ async def handle_slack(request):
                         "text": "Opening notifications modal..."
                     })
                 elif command == "/birdwatcher-mission":
-                    await handle_mission_command(parsed_data)
+                    text = parsed_data.get("text", "").strip()
+                    if text == "list":
+                        channel_id = parsed_data.get("channel_id", "")
+                        user_id = parsed_data.get("user_id", "")
+                        team_id = parsed_data.get("team_id", "")
+                        # Fetch missions
+                        if not tinybird_config:
+                            await init_tinybird_config()
+                        missions_result = await tinybird_config.get_missions(channel_id)
+                        missions = []
+                        if missions_result and isinstance(missions_result, list):
+                            missions = missions_result
+                        # Format the list
+                        if missions:
+                            msg = "*Missions for this channel:*\n"
+                            for m in missions:
+                                name = m.get("name") or "(default)"
+                                content = m.get("mission") or ""
+                                msg += f"• *{name}*:\n```\n{content}\n```\n"
+                        else:
+                            msg = "No missions found for this channel."
+                        # Send ephemeral message to user
+                        await send_ephemeral_message(channel_id, user_id, msg, team_id)
+                        return web.json_response({"response_type": "ephemeral", "text": "Listing missions..."})
+                    else:
+                        await handle_mission_command(parsed_data)
                     return web.json_response({"response_type": "ephemeral", "text": "Opening mission modal..."})
 
             except Exception as e:
@@ -888,14 +1068,52 @@ async def process_with_agno(
             else:
                 session_id = f"slack_{user_id}"
 
+            # Mission selection logic
+            selected_mission_text = None
+            if tinybird_config:
+                missions_result = await tinybird_config.get_missions(channel)
+                missions = []
+                if missions_result and isinstance(missions_result, list):
+                    missions = missions_result
+                elif missions_result and isinstance(missions_result, dict):
+                    missions = missions_result.get('missions', [])
+                print(f"[Mission Selection] Missions fetched for channel {channel}: {missions}")
+
+                match = re.search(r'`([^`]+)`', message)
+                mission_name = match.group(1).strip() if match else None
+                print(f"[Mission Selection] Mission name extracted from message: {mission_name}")
+                selected_mission = None
+                if mission_name:
+                    for m in missions:
+                        m_name = (m.get('name') or '').strip()
+                        if m_name and m_name.lower() == mission_name.lower():
+                            selected_mission = m
+                            break
+                else:
+                    for m in missions:
+                        m_name = m.get('name')
+                        if not m_name or not str(m_name).strip():
+                            selected_mission = m
+                            break
+                print(f"[Mission Selection] Selected mission: {selected_mission}")
+                if selected_mission:
+                    selected_mission_text = selected_mission.get('mission', '')
+                    print(f"[Mission Selection] Selected mission instructions: {selected_mission_text}")
+
             if thread_context:
                 instructions = [f"<slack_thread_instructions>You MUST reply in the same Slack thread as the user's message: Thread ts: {thread_ts}</slack_thread_instructions>\n<thread_context>{dedent(thread_context)}</thread_context>"]
             else:
                 instructions = [f"<slack_thread_instructions>You MUST reply in the same Slack thread as the user's message: Thread ts: {thread_ts}</slack_thread_instructions>\n<message>{message}</message>"]
 
-            mission_text = channel_config.get("mission", "") if channel_config else ""
-            if mission_text.strip():
-                instructions.append(mission_text)
+            # Use mission = 'explore' if inside a thread, unless the thread only has two messages (user + bot)
+            if thread_ts:
+                if thread_messages and len(thread_messages) == 2 and selected_mission_text and selected_mission_text.strip():
+                    instructions.append(selected_mission_text)
+                    mission = None
+                else:
+                    mission = "explore"
+            elif selected_mission_text and selected_mission_text.strip():
+                instructions.append(selected_mission_text)
                 mission = None
             else:
                 mission = "explore"
@@ -1246,8 +1464,21 @@ async def handle_modal_submission(payload):
 
         elif callback_id == "agno_mission_modal":
             print("Saving mission")
-            mission_text = values.get("mission_block", {}).get("mission_textarea", {}).get("value", "")
-            config = {"mission": mission_text, "updated_by": user_id, "channel_id": channel_id, "updated_at": datetime.now().isoformat()}
+            mission_text = values.get("mission_block", {}).get("mission_textarea", {}).get("value")
+            mission_name = values.get("mission_name_block", {}).get("mission_name_input", {}).get("value")
+            # Fallback to initial_value from modal definition if value is None
+            if mission_name is None or mission_text is None:
+                for block in view.get("blocks", []):
+                    if block.get("block_id") == "mission_name_block":
+                        element = block.get("element", {})
+                        if mission_name is None:
+                            mission_name = element.get("initial_value", "")
+                    if block.get("block_id") == "mission_block":
+                        element = block.get("element", {})
+                        if mission_text is None:
+                            mission_text = element.get("initial_value", "")
+            print(f"[modal_submission] mission_name: {mission_name}, mission_text: {mission_text}")
+            config = {"mission": mission_text, "name": mission_name, "updated_by": user_id, "channel_id": channel_id, "updated_at": datetime.now().isoformat()}
             success = await save_mission_config(channel_id, config)
             if not success:
                 return {"response_action": "errors", "errors": {"mission_block": "Failed to save mission"}}
@@ -1273,9 +1504,15 @@ async def handle_mission_command(parsed_data):
         response_url = parsed_data.get("response_url", "")
         team_id = parsed_data.get("team_id", "")
 
-        # Get existing config (fetches mission if present)
-        channel_config = await get_channel_config(channel_id, user_id)
-        modal = create_mission_modal(channel_id, channel_config)
+        # Fetch all missions for the channel
+        if not tinybird_config:
+            await init_tinybird_config()
+        missions_result = await tinybird_config.get_missions(channel_id)
+        missions = []
+        if missions_result and isinstance(missions_result, list):
+            missions = missions_result
+        # Open modal with selector, default to create new
+        modal = create_mission_modal(channel_id, missions, None)
 
         # Get bot token from stored OAuth tokens
         slack_token = None

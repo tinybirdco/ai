@@ -1,0 +1,27 @@
+
+DESCRIPTION >
+    Endpoint to all missions for a given channel_id
+
+NODE get_missions
+SQL >
+    %
+    SELECT
+        user_id,
+        channel_id,
+        argMax(mission, updated_at) mission,
+        argMax(deleted, updated_at) deleted,
+        name,
+        max(updated_at) _updated_at
+    FROM missions
+    WHERE 1
+        {% if defined(user_id) %}
+        AND user_id = {{String(user_id, '')}}
+        {% end %}
+        {% if defined(channel_id) %}
+        AND channel_id = {{String(channel_id, '')}}
+        {% end %}
+    GROUP BY channel_id, user_id, name
+    HAVING deleted = 0
+    LIMIT 1 by channel_id, name
+
+TYPE endpoint

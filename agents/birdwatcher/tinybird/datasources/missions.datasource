@@ -6,9 +6,13 @@ SCHEMA >
     `user_id` String `json:$.user_id`,
     `channel_id` String `json:$.channel_id`,
     `mission` String `json:$.mission`,
-    `updated_at` DateTime `json:$.updated_at`
+    `name` Nullable(String) `json:$.name`,
+    `updated_at` DateTime `json:$.updated_at`,
+    `deleted` UInt8 `json:$.deleted`
 
 ENGINE "ReplacingMergeTree"
 ENGINE_PARTITION_KEY "toYYYYMM(updated_at)"
 ENGINE_SORTING_KEY "user_id, channel_id, updated_at"
-        
+
+FORWARD_QUERY >
+  SELECT user_id, channel_id, mission, name, updated_at, defaultValueOfTypeName('UInt8') AS deleted
