@@ -209,7 +209,8 @@ async def main():
     memory_agent, mcp_tools, _ = await create_agno_agent(
         system_prompt=SYSTEM_PROMPT,
         # instructions=[dedent(ORGANIZATION_METRICS_PROMPT)] + [dedent(INVESTIGATION_TEMPLATES)],
-        mission="explore",
+        # mission="explore",
+        mission=args.mission,
         tinybird_host=tinybird_host,
         tinybird_api_key=tinybird_api_key,
         role="Analytics Agent",

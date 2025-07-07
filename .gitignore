@@ -1,6 +1,8 @@
 agents/birdwatcher/tmp
 agents/birdwatcher/examples
 agents/pydantic
+agents/birdwatcher/missions/*output
+agents/birdwatcher/missions/*oa_sot*
 
 
 __pycache__/
