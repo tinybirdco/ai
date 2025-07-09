@@ -1,0 +1,42 @@
+DESCRIPTION >
+    Processes Plain support system events and creates a materialized view with parsed thread data and project classification
+
+NODE parse_tickets
+SQL >
+
+    SELECT 
+        data, 
+        JSON_VALUE(data, '$.id') as event_id,
+        parseDateTimeBestEffort(JSON_VALUE(data, '$.timestamp')) as event_ts,
+        JSON_VALUE(data, '$.type') as event_type,
+        JSON_VALUE(data, '$.payload.thread.id') as thread_id,
+        JSON_VALUE(data, '$.payload.thread.title') as thread_title, 
+        JSON_VALUE(data, '$.payload.thread.previewText') as message_text, 
+        JSON_VALUE(data, '$.payload.slackMessage.text') as slack_text,
+        JSON_VALUE(data, '$.payload.thread.assignee.email') as thread_assignee, 
+        JSON_VALUE(data, '$.payload.thread.customer.email.email') as thread_reporter, 
+        JSON_VALUE(data, '$.payload.thread.firstInboundMessageInfo.messageSource') as thread_origin, 
+        JSON_VALUE(data, '$.payload.slackMessage.slackChannelName') as thread_slack_channel_name,
+        extractAll(simpleJSONExtractRaw(data, 'labels'), '"labelType":\\{[^}]*"name":"([^"]+)"') as thread_labels,
+        JSON_VALUE(data, '$.payload.thread.status') as thread_status
+    FROM plain_events
+
+
+
+NODE materialize
+SQL >
+
+    SELECT
+        *,
+        multiIf(
+            thread_slack_channel_name = 'help-and-questions', 'slack-community',
+            thread_origin = 'EMAIL', 'email',
+            thread_slack_channel_name = '', '', --if it is not slack/email message is sent or received 
+            'slack-enterprise'
+        ) AS thread_project
+    FROM parse_tickets
+
+TYPE materialized
+DATASOURCE plain_events_mv
+
+

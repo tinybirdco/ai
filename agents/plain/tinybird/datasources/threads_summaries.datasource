@@ -1,0 +1,18 @@
+
+DESCRIPTION >
+    Thread summaries data containing generated summaries of support threads with associated dates for tracking and analysis
+
+    ## Fields:
+    - **`thread_id`** - Unique identifier for the support thread being summarized
+    - **`summary`** - Generated summary text describing the thread content and resolution
+    - **`date`** - Date when the summary was generated or last updated
+
+SCHEMA >
+    `thread_id` String,
+    `summary` String,
+    `date` Date
+
+ENGINE "ReplacingMergeTree"
+ENGINE_PARTITION_KEY "toYYYYMM(date)"
+ENGINE_SORTING_KEY "thread_id"
+ENGINE_VER "date"

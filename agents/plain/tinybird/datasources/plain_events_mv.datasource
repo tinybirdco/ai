@@ -1,0 +1,42 @@
+TOKEN "append_plain" APPEND
+
+DESCRIPTION >
+    MV from Plain parsed events from webhooks.
+
+    ## Fields:
+    - **`data`** - Raw JSON data from the original webhook event
+    - **`event_id`** - Unique identifier for the event
+    - **`event_ts`** - Timestamp when the event occurred
+    - **`event_type`** - Type of event (thread.created, thread.updated, etc.)
+    - **`thread_id`** - Unique identifier for the support thread
+    - **`thread_title`** - Title or subject of the support thread
+    - **`message_text`** - Text content of the message associated with the event
+    - **`slack_text`** - Slack-formatted text content for notifications
+    - **`thread_assignee`** - Person or team assigned to handle the thread
+    - **`thread_reporter`** - Customer or user who reported the issue
+    - **`thread_origin`** - Source channel where the thread originated (email, slack, etc.)
+    - **`thread_slack_channel_name`** - Name of the Slack channel if thread originated from Slack (nullable)
+    - **`thread_labels`** - Array of labels/tags applied to the thread for categorization
+    - **`thread_status`** - Current status of the thread (open, closed, waiting, etc.)
+    - **`thread_project`** - Project or workspace the thread belongs to (nullable)
+
+SCHEMA >
+    `data` String,
+    `event_id` String,
+    `event_ts` DateTime,
+    `event_type` String,
+    `thread_id` String,
+    `thread_title` String,
+    `message_text` String,
+    `slack_text` String,
+    `thread_assignee` String,
+    `thread_reporter` String,
+    `thread_origin` String,
+    `thread_slack_channel_name` Nullable(String),
+    `thread_labels` Array(String),
+    `thread_status` String,
+    `thread_project` Nullable(String)
+
+ENGINE "MergeTree"
+ENGINE_PARTITION_KEY "toYYYYMM(event_ts)"
+ENGINE_SORTING_KEY "event_ts"

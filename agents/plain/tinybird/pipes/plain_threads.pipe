@@ -1,0 +1,78 @@
+DESCRIPTION >
+    Aggregates Plain events into conversation threads with message consolidation and creates materialized view for thread analysis
+
+NODE consolidate_message_text
+SQL >
+
+    SELECT
+        *,
+        if(thread_origin = 'EMAIL', message_text, slack_text) as plain_text
+    FROM plain_events_mv
+    WHERE event_type not in (
+        'thread.thread_created',
+        'thread.thread_status_transitioned',
+    )
+
+
+
+NODE group_by_thread
+SQL >
+
+    SELECT
+        thread_id,
+        count() as row_count,
+        min(event_ts) as first_event_ts,
+        max(event_ts) as last_event_ts,
+        argMax(thread_title, event_ts) as thread_title,
+        argMax(thread_assignee, event_ts) as thread_assignee,
+        argMax(thread_reporter, event_ts) as thread_reporter,
+        argMax(thread_origin, event_ts) as thread_origin,
+        argMax(thread_slack_channel_name, event_ts) as thread_slack_channel_name,
+        argMax(thread_labels, event_ts) as thread_labels,
+        arraySort(groupArray(tuple(event_ts, plain_text))) AS thread_messages,
+        argMax(thread_status, event_ts) as last_status
+    FROM consolidate_message_text
+    GROUP BY thread_id
+
+
+
+NODE sorted_conversation
+SQL >
+
+    SELECT 
+        *,
+        arraySort(x -> x.1, thread_messages) AS thread_conversation_raw
+    FROM group_by_thread
+
+
+
+NODE materialize
+SQL >
+
+    SELECT 
+        thread_id, 
+        row_count, 
+        first_event_ts, 
+        last_event_ts, 
+        thread_title, 
+        thread_assignee, 
+        thread_reporter, 
+        thread_origin, 
+        thread_slack_channel_name, 
+        thread_labels, 
+        thread_messages, 
+        last_status,
+        thread_reporter,
+        thread_assignee,
+        splitByChar('@', thread_reporter)[2] as domain,
+        arrayStringConcat(
+            arrayMap(
+                t -> concat(toString(t.1.1), ': ', t.1.2),
+                arrayFilter(
+                    t -> t.2 = indexOf(arrayMap(x -> x.2, thread_conversation_raw), t.1.2),
+                    arrayZip(thread_conversation_raw, arrayEnumerate(thread_conversation_raw))
+                )
+            ),
+            '\n'
+        ) AS thread_conversation
+    FROM sorted_conversation

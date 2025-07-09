@@ -1,0 +1,13 @@
+TOKEN "append_plain" APPEND
+
+DESCRIPTION >
+    Plain created and state transition events from webhooks.
+
+    ## Fields:
+    - **`data`** - Raw JSON data payload from Plain webhook events containing all event information
+
+SCHEMA >
+    `data` String `json:$`
+
+ENGINE "MergeTree"
+ENGINE_SORTING_KEY "data"

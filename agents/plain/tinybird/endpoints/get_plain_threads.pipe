@@ -1,0 +1,89 @@
+DESCRIPTION >
+	Get plain threads from plain threads filtering by id, domain, status and time range.
+
+
+NODE get_last_status
+SQL >
+
+    SELECT
+        argMax(thread_status, event_ts) AS last_status,
+        max(event_ts) AS last_event_ts,
+        thread_id
+    FROM plain_events_mv
+    WHERE event_type in (
+        'thread.thread_created',
+        'thread.thread_status_transitioned',
+    )
+    GROUP BY thread_id
+
+
+
+NODE join_last_status
+SQL >
+
+    SELECT
+        thread_id, 
+        row_count, 
+        first_event_ts, 
+        gls.last_event_ts as last_event_ts, 
+        thread_title, 
+        thread_origin, 
+        thread_slack_channel_name, 
+        thread_labels, 
+        gls.last_status as last_status,
+        domain,
+        thread_conversation,
+        thread_reporter,
+        thread_assignee
+    FROM plain_threads t
+    LEFT JOIN get_last_status gls
+    USING (thread_id)
+
+
+
+NODE endpoint
+SQL >
+
+    %
+        SELECT 
+            thread_id, 
+            concat('https://app.plain.com/workspace/w_01JNGTZQ1E4KD225WSHHD6FZV9/thread/', thread_id) AS thread_link,
+            row_count as reply_count, 
+            first_event_ts, 
+            last_event_ts, 
+            thread_title, 
+            thread_origin, 
+            thread_slack_channel_name, 
+            thread_labels, 
+            last_status,
+            domain,
+            splitByString('.', domain)[1] as customer_name,
+            thread_conversation,
+            substr(thread_conversation, 1, 500) as thread_initial_conversation,
+            summary,
+            thread_reporter,
+            thread_assignee
+        FROM join_last_status
+        LEFT JOIN threads_summaries USING thread_id
+        WHERE 1
+        {% if defined(thread_id) %}
+        AND thread_id = ({{String(thread_id)}})
+        {% end %}
+        {% if defined(domain) %}
+        AND domain = {{String(domain)}}
+        {% end %}
+        {% if defined(slack_channel) %}
+        AND thread_slack_channel_name = {{String(slack_channel)}}
+        {% end %}
+        {% if defined(status) and status=='created' %}
+        AND toDate(first_event_ts) >= {{Date(start_date)}}
+        AND toDate(first_event_ts) <= {{Date(end_date)}}
+        {% end %}
+        {% if defined(status) and status=='done' %}
+        AND last_status = 'DONE'
+        AND toDate(last_event_ts) >= {{Date(start_date)}}
+        AND toDate(last_event_ts) <= {{Date(end_date)}}
+        {% end %}
+        ORDER BY reply_count DESC
+
+
