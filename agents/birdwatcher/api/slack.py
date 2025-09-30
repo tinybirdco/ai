@@ -4,6 +4,7 @@ import os
 import aiohttp
 import re
 import asyncio
+import logging
 from birdwatcher import create_agno_agent
 from prompts import SYSTEM_PROMPT
 from textwrap import dedent
@@ -13,6 +14,9 @@ import random
 from datetime import datetime
 from .tinybird import create_tinybird_config, encrypt_token, decrypt_token
 from .thinking_messages import THINKING_MESSAGES
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # File to store processed message IDs
 PROCESSED_MESSAGES_FILE = os.path.join(tempfile.gettempdir(), "slack_bot_processed_messages.txt")
@@ -460,8 +464,47 @@ async def send_slack_message(channel: str, text: str, thread_ts: str = None, tea
                 print(f"DEBUG: Slack API response: {response_data}")
 
                 if not response_data.get("ok"):
-                    print(f"Slack API error: {response_data.get('error')}")
+                    error = response_data.get('error')
+                    print(f"Slack API error: {error}")
                     print(f"Full error response: {response_data}")
+                    
+                    # Handle token expiration
+                    if error in ["token_expired", "invalid_auth", "account_inactive"]:
+                        print(f"Token expired or invalid, attempting refresh for team {team_id}")
+                        if team_id:
+                            # Get current tokens to access refresh token
+                            current_tokens = await get_slack_tokens_for_team(team_id)
+                            if current_tokens and current_tokens.get("refresh_token"):
+                                try:
+                                    refreshed_tokens = await tinybird_config.refresh_slack_token(team_id, current_tokens["refresh_token"])
+                                    if refreshed_tokens:
+                                        print("Token refreshed successfully, retrying message send")
+                                        # Retry with new token
+                                        async with session.post(
+                                            "https://slack.com/api/chat.postMessage",
+                                            json=slack_data,
+                                            headers={
+                                                "Authorization": f"Bearer {refreshed_tokens['bot_token']}",
+                                                "Content-Type": "application/json",
+                                            }
+                                        ) as retry_response:
+                                            retry_data = await retry_response.json()
+                                            if retry_data.get("ok"):
+                                                print(f"DEBUG: Message sent successfully after token refresh. Response ts: {retry_data.get('ts')}")
+                                                return True
+                                            else:
+                                                print(f"Retry failed: {retry_data.get('error')}")
+                                                return False
+                                    else:
+                                        print("Token refresh failed")
+                                        return False
+                                except Exception as refresh_error:
+                                    print(f"Error during token refresh: {refresh_error}")
+                                    return False
+                            else:
+                                print("No refresh token available")
+                                return False
+                    
                     return False
                 else:
                     print(f"DEBUG: Message sent successfully. Response ts: {response_data.get('ts')}")
@@ -807,6 +850,7 @@ async def slack_oauth_callback(request):
                 bot_token = slack_response.get("access_token")
                 bot_user_id = slack_response.get("bot_user_id")
                 authed_user_id = slack_response.get("authed_user", {}).get("id")
+                refresh_token = slack_response.get("refresh_token")
                 
                 if team_id and bot_token and bot_user_id:
                     # Initialize Tinybird config
@@ -814,12 +858,13 @@ async def slack_oauth_callback(request):
                         if not await init_tinybird_config():
                             return web.Response(text="Failed to initialize Tinybird config", status=500)
                     
-                    # Save the OAuth tokens
+                    # Save the OAuth tokens (including refresh token)
                     success = await tinybird_config.save_slack_oauth_tokens(
                         team_id=team_id,
                         bot_token=bot_token,
                         bot_user_id=bot_user_id,
-                        authed_user_id=authed_user_id
+                        authed_user_id=authed_user_id,
+                        refresh_token=refresh_token
                     )
                     
                     if success:
@@ -842,12 +887,30 @@ async def slack_oauth_callback(request):
                 return web.Response(text=f"Slack OAuth failed: {err}", status=400)
 
 async def get_slack_tokens_for_team(team_id: str):
-    """Get Slack OAuth tokens for a specific team from Tinybird"""
+    """Get Slack OAuth tokens for a specific team from Tinybird, with automatic refresh if needed"""
     if not tinybird_config:
         if not await init_tinybird_config():
             return None
     
     tokens = await tinybird_config.get_slack_oauth_tokens(team_id)
+    if not tokens:
+        return None
+    
+    # Check if we have a refresh token and try to refresh if the current token might be expired
+    if tokens.get("refresh_token"):
+        try:
+            # Try to refresh the token
+            refreshed_tokens = await tinybird_config.refresh_slack_token(team_id, tokens["refresh_token"])
+            if refreshed_tokens:
+                # Update the tokens with the refreshed ones
+                tokens.update(refreshed_tokens)
+                logger.info(f"Successfully refreshed tokens for team {team_id}")
+            else:
+                logger.warning(f"Token refresh failed for team {team_id}, using existing tokens")
+        except Exception as e:
+            logger.error(f"Error during token refresh for team {team_id}: {e}")
+            # Continue with existing tokens
+    
     return tokens
 
 async def handle_slack_event(event):
