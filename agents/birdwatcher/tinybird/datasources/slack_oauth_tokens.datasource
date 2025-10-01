@@ -6,8 +6,12 @@ SCHEMA >
     `bot_token` String `json:$.bot_token`,
     `bot_user_id` String `json:$.bot_user_id`,
     `authed_user_id` String `json:$.authed_user_id`,
-    `updated_at` DateTime `json:$.updated_at`
+    `updated_at` DateTime `json:$.updated_at`,
+    `refresh_token` String `json:$.refresh_token`
 
 ENGINE "ReplacingMergeTree"
 ENGINE_PARTITION_KEY "toYYYYMM(updated_at)"
 ENGINE_SORTING_KEY "team_id, updated_at" 
+
+FORWARD_QUERY >
+  SELECT team_id, bot_token, bot_user_id, authed_user_id, updated_at, defaultValueOfTypeName('String') AS refresh_token

@@ -420,27 +420,145 @@ def mark_message_processed(message_id):
     except Exception as e:
         print(f"Error marking message as processed: {e}")
 
-async def send_slack_message(channel: str, text: str, thread_ts: str = None, team_id: str = None):
-    """Send a message to Slack using aiohttp"""
+async def make_slack_api_call(team_id: str, url: str, data: dict, headers: dict = None, method: str = "POST"):
+    """Make a Slack API call with automatic token refresh on failure"""
+    print(f"DEBUG: make_slack_api_call called with team_id={team_id}, url={url}")
+    
     # Get bot token from stored OAuth tokens
     slack_token = None
-    bot_user_id = None
     if team_id:
+        print(f"DEBUG: Getting tokens for team_id={team_id}")
         tokens = await get_slack_tokens_for_team(team_id)
+        print(f"DEBUG: Tokens retrieved: {bool(tokens)}")
         if tokens:
             slack_token = tokens.get("bot_token")
-            bot_user_id = tokens.get("bot_user_id")
+            print(f"DEBUG: Bot token from stored tokens: {bool(slack_token)}")
         else:
             # Fallback to environment variable for backward compatibility
             slack_token = os.environ.get("SLACK_TOKEN", "")
+            print(f"DEBUG: Using fallback token: {bool(slack_token)}")
     else:
         # Fallback to environment variable for backward compatibility
         slack_token = os.environ.get("SLACK_TOKEN", "")
+        print(f"DEBUG: No team_id, using fallback token: {bool(slack_token)}")
     
     if not slack_token:
         print("ERROR: No SLACK_TOKEN found!")
-        return False
+        return None
 
+    # Set default headers
+    if headers is None:
+        headers = {}
+    headers["Authorization"] = f"Bearer {slack_token}"
+    headers["Content-Type"] = "application/json"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            if method.upper() == "POST":
+                async with session.post(url, json=data, headers=headers) as response:
+                    response_data = await response.json()
+            elif method.upper() == "GET":
+                async with session.get(url, headers=headers) as response:
+                    response_data = await response.json()
+            else:
+                raise ValueError(f"Unsupported HTTP method: {method}")
+
+            print(f"DEBUG: Slack API response: {response_data}")
+
+            if not response_data.get("ok"):
+                error = response_data.get('error')
+                print(f"Slack API error: {error}")
+                print(f"Full error response: {response_data}")
+                
+                # Handle token expiration
+                if error in ["token_expired", "invalid_auth", "account_inactive"]:
+                    print(f"Token expired or invalid, attempting refresh for team {team_id}")
+                    if team_id:
+                        # Get current tokens to access refresh token
+                        current_tokens = await get_slack_tokens_for_team(team_id)
+                        print(f"Current tokens available: {bool(current_tokens)}")
+                        if current_tokens and current_tokens.get("refresh_token"):
+                            print(f"Refresh token available, attempting refresh...")
+                            if not tinybird_config:
+                                print("ERROR: tinybird_config not initialized for token refresh")
+                                return response_data
+                            try:
+                                refreshed_tokens = await tinybird_config.refresh_slack_token(team_id, current_tokens["refresh_token"])
+                                print(f"Refresh result: {bool(refreshed_tokens)}")
+                                if refreshed_tokens:
+                                    print("Token refreshed successfully, retrying API call")
+                                    # Retry with new token
+                                    headers["Authorization"] = f"Bearer {refreshed_tokens['bot_token']}"
+                                    if method.upper() == "POST":
+                                        async with session.post(url, json=data, headers=headers) as retry_response:
+                                            retry_data = await retry_response.json()
+                                    elif method.upper() == "GET":
+                                        async with session.get(url, headers=headers) as retry_response:
+                                            retry_data = await retry_response.json()
+                                    
+                                    print(f"Retry response: {retry_data}")
+                                    if retry_data.get("ok"):
+                                        print(f"DEBUG: API call successful after token refresh")
+                                        return retry_data
+                                    else:
+                                        print(f"Retry failed: {retry_data.get('error')}")
+                                        return retry_data
+                                else:
+                                    print("Token refresh failed - no refreshed tokens returned")
+                                    return response_data
+                            except Exception as refresh_error:
+                                print(f"Error during token refresh: {refresh_error}")
+                                import traceback
+                                traceback.print_exc()
+                                return response_data
+                        else:
+                            print(f"No refresh token available. Current tokens: {current_tokens}")
+                            print("ERROR: Token expired but no refresh token available.")
+                            print("Attempting fallback to environment variable token...")
+                            
+                            # Try fallback to environment variable token
+                            fallback_token = os.environ.get("SLACK_TOKEN", "")
+                            if fallback_token:
+                                print("Using fallback token from environment variable")
+                                headers["Authorization"] = f"Bearer {fallback_token}"
+                                try:
+                                    if method.upper() == "POST":
+                                        async with session.post(url, json=data, headers=headers) as fallback_response:
+                                            fallback_data = await fallback_response.json()
+                                    elif method.upper() == "GET":
+                                        async with session.get(url, headers=headers) as fallback_response:
+                                            fallback_data = await fallback_response.json()
+                                    
+                                    print(f"Fallback response: {fallback_data}")
+                                    if fallback_data.get("ok"):
+                                        print("DEBUG: API call successful with fallback token")
+                                        return fallback_data
+                                    else:
+                                        print(f"Fallback also failed: {fallback_data.get('error')}")
+                                        return fallback_data
+                                except Exception as fallback_error:
+                                    print(f"Error during fallback attempt: {fallback_error}")
+                                    return response_data
+                            else:
+                                print("No fallback token available either. Bot needs to be reinstalled.")
+                                return response_data
+                    else:
+                        print("No team_id provided for token refresh")
+                        return response_data
+                    
+                    return response_data
+            else:
+                print(f"DEBUG: API call successful")
+                return response_data
+
+    except Exception as e:
+        print(f"Error making Slack API call: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+async def send_slack_message(channel: str, text: str, thread_ts: str = None, team_id: str = None):
+    """Send a message to Slack using aiohttp"""
     slack_data = {"channel": channel, "text": text}
     if thread_ts:
         slack_data["thread_ts"] = thread_ts
@@ -450,70 +568,19 @@ async def send_slack_message(channel: str, text: str, thread_ts: str = None, tea
 
     print(f"DEBUG: Slack payload: {json.dumps(slack_data, indent=2)}")
 
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "https://slack.com/api/chat.postMessage",
-                json=slack_data,
-                headers={
-                    "Authorization": f"Bearer {slack_token}",
-                    "Content-Type": "application/json",
-                }
-            ) as response:
-                response_data = await response.json()
-                print(f"DEBUG: Slack API response: {response_data}")
-
-                if not response_data.get("ok"):
-                    error = response_data.get('error')
-                    print(f"Slack API error: {error}")
-                    print(f"Full error response: {response_data}")
-                    
-                    # Handle token expiration
-                    if error in ["token_expired", "invalid_auth", "account_inactive"]:
-                        print(f"Token expired or invalid, attempting refresh for team {team_id}")
-                        if team_id:
-                            # Get current tokens to access refresh token
-                            current_tokens = await get_slack_tokens_for_team(team_id)
-                            if current_tokens and current_tokens.get("refresh_token"):
-                                try:
-                                    refreshed_tokens = await tinybird_config.refresh_slack_token(team_id, current_tokens["refresh_token"])
-                                    if refreshed_tokens:
-                                        print("Token refreshed successfully, retrying message send")
-                                        # Retry with new token
-                                        async with session.post(
-                                            "https://slack.com/api/chat.postMessage",
-                                            json=slack_data,
-                                            headers={
-                                                "Authorization": f"Bearer {refreshed_tokens['bot_token']}",
-                                                "Content-Type": "application/json",
-                                            }
-                                        ) as retry_response:
-                                            retry_data = await retry_response.json()
-                                            if retry_data.get("ok"):
-                                                print(f"DEBUG: Message sent successfully after token refresh. Response ts: {retry_data.get('ts')}")
-                                                return True
-                                            else:
-                                                print(f"Retry failed: {retry_data.get('error')}")
-                                                return False
-                                    else:
-                                        print("Token refresh failed")
-                                        return False
-                                except Exception as refresh_error:
-                                    print(f"Error during token refresh: {refresh_error}")
-                                    return False
-                            else:
-                                print("No refresh token available")
-                                return False
-                    
-                    return False
-                else:
-                    print(f"DEBUG: Message sent successfully. Response ts: {response_data.get('ts')}")
-                    return True
-
-    except Exception as e:
-        print(f"Error sending Slack message: {e}")
-        import traceback
-        traceback.print_exc()
+    response_data = await make_slack_api_call(
+        team_id=team_id,
+        url="https://slack.com/api/chat.postMessage",
+        data=slack_data
+    )
+    
+    if response_data and response_data.get("ok"):
+        print(f"DEBUG: Message sent successfully. Response ts: {response_data.get('ts')}")
+        return True
+    else:
+        # If it's a token error and we can't refresh, send a helpful message
+        if response_data and response_data.get("error") in ["token_expired", "invalid_auth", "account_inactive"]:
+            print("Token expired and no refresh token available - bot needs reinstallation")
         return False
 
 async def send_followup_response(response_url: str, text: str):
@@ -539,39 +606,22 @@ async def send_followup_response(response_url: str, text: str):
 
 async def get_thread_history(channel: str, thread_ts: str, limit: int = 50, team_id: str = None):
     """Fetch thread history from Slack API using aiohttp"""
-    # Get bot token from stored OAuth tokens
-    if team_id:
-        tokens = await get_slack_tokens_for_team(team_id)
-        if tokens:
-            slack_token = tokens.get("bot_token")
-        else:
-            # Fallback to environment variable for backward compatibility
-            slack_token = os.environ.get("SLACK_TOKEN", "")
-    else:
-        # Fallback to environment variable for backward compatibility
-        slack_token = os.environ.get("SLACK_TOKEN", "")
-    
-    if not slack_token or not thread_ts:
+    if not thread_ts:
         return []
     
-    try:
-        url = f"https://slack.com/api/conversations.replies?channel={channel}&ts={thread_ts}&limit={limit}"
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                url,
-                headers={"Authorization": f"Bearer {slack_token}"}
-            ) as response:
-                data = await response.json()
-            
-            if data.get("ok"):
-                return data.get("messages", [])
-            else:
-                print(f"Slack API error fetching thread: {data.get('error', 'Unknown error')}")
-                return []
-                
-    except Exception as e:
-        print(f"Error fetching thread history: {e}")
+    url = f"https://slack.com/api/conversations.replies?channel={channel}&ts={thread_ts}&limit={limit}"
+    
+    response_data = await make_slack_api_call(
+        team_id=team_id,
+        url=url,
+        data={},
+        method="GET"
+    )
+    
+    if response_data and response_data.get("ok"):
+        return response_data.get("messages", [])
+    else:
+        print(f"Slack API error fetching thread: {response_data.get('error', 'Unknown error') if response_data else 'No response'}")
         return []
 
 @routes.post('/api/slack')
@@ -682,31 +732,19 @@ async def handle_slack(request):
                                     new_modal = create_mission_modal(channel_id, missions, selected_mission)
                                 print(f"[block_actions] New modal to send: {json.dumps(new_modal, indent=2)}")
                                 # Call views.update
-                                slack_token = None
-                                if team_id:
-                                    tokens = await get_slack_tokens_for_team(team_id)
-                                    if tokens:
-                                        slack_token = tokens.get("bot_token")
-                                if not slack_token:
-                                    slack_token = os.environ.get("SLACK_TOKEN", "")
                                 view_id = view.get("id")
-                                print(f"[block_actions] view_id: {view_id}, slack_token exists: {bool(slack_token)}")
-                                if slack_token and view_id:
-                                    async with aiohttp.ClientSession() as session:
-                                        async with session.post(
-                                            "https://slack.com/api/views.update",
-                                            json={"view_id": view_id, "view": new_modal},
-                                            headers={
-                                                "Authorization": f"Bearer {slack_token}",
-                                                "Content-Type": "application/json"
-                                            }
-                                        ) as resp:
-                                            resp_data = await resp.json()
-                                            print(f"[block_actions] Slack views.update response: {json.dumps(resp_data, indent=2)}")
-                                            if not resp_data.get("ok"):
-                                                print(f"[block_actions] Error from Slack API: {resp_data.get('error')}")
+                                print(f"[block_actions] view_id: {view_id}")
+                                if view_id:
+                                    resp_data = await make_slack_api_call(
+                                        team_id=team_id,
+                                        url="https://slack.com/api/views.update",
+                                        data={"view_id": view_id, "view": new_modal}
+                                    )
+                                    print(f"[block_actions] Slack views.update response: {json.dumps(resp_data, indent=2) if resp_data else 'No response'}")
+                                    if not resp_data or not resp_data.get("ok"):
+                                        print(f"[block_actions] Error from Slack API: {resp_data.get('error') if resp_data else 'No response'}")
                                 else:
-                                    print(f"[block_actions] Missing slack_token or view_id, cannot update modal.")
+                                    print(f"[block_actions] Missing view_id, cannot update modal.")
                                 return web.json_response({})
                             elif actions and actions[0].get("action_id") == "delete_mission":
                                 view = payload.get("view", {})
@@ -887,7 +925,7 @@ async def slack_oauth_callback(request):
                 return web.Response(text=f"Slack OAuth failed: {err}", status=400)
 
 async def get_slack_tokens_for_team(team_id: str):
-    """Get Slack OAuth tokens for a specific team from Tinybird, with automatic refresh if needed"""
+    """Get Slack OAuth tokens for a specific team from Tinybird"""
     if not tinybird_config:
         if not await init_tinybird_config():
             return None
@@ -895,21 +933,6 @@ async def get_slack_tokens_for_team(team_id: str):
     tokens = await tinybird_config.get_slack_oauth_tokens(team_id)
     if not tokens:
         return None
-    
-    # Check if we have a refresh token and try to refresh if the current token might be expired
-    if tokens.get("refresh_token"):
-        try:
-            # Try to refresh the token
-            refreshed_tokens = await tinybird_config.refresh_slack_token(team_id, tokens["refresh_token"])
-            if refreshed_tokens:
-                # Update the tokens with the refreshed ones
-                tokens.update(refreshed_tokens)
-                logger.info(f"Successfully refreshed tokens for team {team_id}")
-            else:
-                logger.warning(f"Token refresh failed for team {team_id}, using existing tokens")
-        except Exception as e:
-            logger.error(f"Error during token refresh for team {team_id}: {e}")
-            # Continue with existing tokens
     
     return tokens
 
@@ -1297,27 +1320,22 @@ async def handle_config_command(parsed_data):
             return
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    "https://slack.com/api/views.open",
-                    json={
-                        "trigger_id": trigger_id,
-                        "view": modal
-                    },
-                    headers={
-                        "Authorization": f"Bearer {slack_token}",
-                        "Content-Type": "application/json"
-                    }
-                ) as response:
-                    response_data = await response.json()
+            response_data = await make_slack_api_call(
+                team_id=team_id,
+                url="https://slack.com/api/views.open",
+                data={
+                    "trigger_id": trigger_id,
+                    "view": modal
+                }
+            )
 
-                    if not response_data.get("ok"):
-                        error_msg = response_data.get("error", "Unknown error")
-                        await send_followup_response(
-                            response_url,
-                            f"❌ Error opening configuration modal: {error_msg}"
-                        )
-                        return
+            if not response_data or not response_data.get("ok"):
+                error_msg = response_data.get("error", "Unknown error") if response_data else "No response"
+                await send_followup_response(
+                    response_url,
+                    f"❌ Error opening configuration modal: {error_msg}"
+                )
+                return
 
         except Exception as e:
             print(f"Error opening modal: {e}")
@@ -1367,27 +1385,22 @@ async def handle_notifications_command(parsed_data):
             return
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    "https://slack.com/api/views.open",
-                    json={
-                        "trigger_id": trigger_id,
-                        "view": modal
-                    },
-                    headers={
-                        "Authorization": f"Bearer {slack_token}",
-                        "Content-Type": "application/json"
-                    }
-                ) as response:
-                    response_data = await response.json()
+            response_data = await make_slack_api_call(
+                team_id=team_id,
+                url="https://slack.com/api/views.open",
+                data={
+                    "trigger_id": trigger_id,
+                    "view": modal
+                }
+            )
 
-                    if not response_data.get("ok"):
-                        error_msg = response_data.get("error", "Unknown error")
-                        await send_followup_response(
-                            response_url,
-                            f"❌ Error opening notifications modal: {error_msg}"
-                        )
-                        return
+            if not response_data or not response_data.get("ok"):
+                error_msg = response_data.get("error", "Unknown error") if response_data else "No response"
+                await send_followup_response(
+                    response_url,
+                    f"❌ Error opening notifications modal: {error_msg}"
+                )
+                return
 
         except Exception as e:
             print(f"Error opening modal: {e}")
@@ -1406,40 +1419,22 @@ async def handle_notifications_command(parsed_data):
 
 async def send_ephemeral_message(channel: str, user: str, text: str, team_id: str = None):
     """Send an ephemeral message to a channel using aiohttp"""
-    try:
-        # Get bot token from stored OAuth tokens
-        if team_id:
-            tokens = await get_slack_tokens_for_team(team_id)
-            if tokens:
-                slack_token = tokens.get("bot_token")
-            else:
-                # Fallback to environment variable for backward compatibility
-                slack_token = os.environ.get("SLACK_TOKEN", "")
-        else:
-            # Fallback to environment variable for backward compatibility
-            slack_token = os.environ.get("SLACK_TOKEN", "")
-        
-        if not slack_token:
-            print("ERROR: No SLACK_TOKEN found!")
-            return False
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "https://slack.com/api/chat.postEphemeral",
-                json={
-                    "channel": channel,
-                    "user": user,
-                    "text": text
-                },
-                headers={
-                    "Authorization": f"Bearer {slack_token}",
-                    "Content-Type": "application/json",
-                }
-            ) as response:
-                response_data = await response.json()
-                return response_data.get("ok", False)
-    except Exception as e:
-        print(f"Error sending ephemeral message: {e}")
+    slack_data = {
+        "channel": channel,
+        "user": user,
+        "text": text
+    }
+    
+    response_data = await make_slack_api_call(
+        team_id=team_id,
+        url="https://slack.com/api/chat.postEphemeral",
+        data=slack_data
+    )
+    
+    if response_data and response_data.get("ok"):
+        return True
+    else:
+        print(f"Error sending ephemeral message: {response_data.get('error', 'Unknown error') if response_data else 'No response'}")
         return False
 
 async def handle_modal_submission(payload):
@@ -1589,17 +1584,16 @@ async def handle_mission_command(parsed_data):
             await send_followup_response(response_url, "❌ Error: Bot token not configured")
             return
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    "https://slack.com/api/views.open",
-                    json={"trigger_id": trigger_id, "view": modal},
-                    headers={"Authorization": f"Bearer {slack_token}", "Content-Type": "application/json"}
-                ) as response:
-                    response_data = await response.json()
-                    if not response_data.get("ok"):
-                        error_msg = response_data.get("error", "Unknown error")
-                        await send_followup_response(response_url, f"❌ Error opening mission modal: {error_msg}")
-                        return
+            response_data = await make_slack_api_call(
+                team_id=team_id,
+                url="https://slack.com/api/views.open",
+                data={"trigger_id": trigger_id, "view": modal}
+            )
+            
+            if not response_data or not response_data.get("ok"):
+                error_msg = response_data.get("error", "Unknown error") if response_data else "No response"
+                await send_followup_response(response_url, f"❌ Error opening mission modal: {error_msg}")
+                return
         except Exception as e:
             print(f"Error opening mission modal: {e}")
             await send_followup_response(response_url, f"❌ Error opening mission modal: {str(e)}")
